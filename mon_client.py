@@ -12,15 +12,11 @@
 #等待中控服务器的fetch请求
 
 
-import sys
+import sys,time,threading,os,re,tarfile
 import BaseHTTPServer
 from SimpleHTTPServer import SimpleHTTPRequestHandler
-import threading
-import time
 from datetime import date
-import os
-import re
-import tarfile
+
 
 WEB_SERVICE_PORT = 55666
 WEB_ASSETS_ROOT = '/91logs/'

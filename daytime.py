@@ -7,6 +7,7 @@
 #author :kk
 
 from datetime import datetime
+from datetime import timedelta
 
 class DayTime(object):
     """used for compare two time, has nothing to do with date
@@ -20,6 +21,8 @@ class DayTime(object):
             self.hour = initime[0]
             self.min = initime[1]
             self.sec = initime[2]
+        else:
+            raise TypeError
 
     def __le__(self,other): #x<=y calls x.__le__(y)
         if self.hour*3600 + self.min*60 + self.sec <= other.hour*3600 + other.min*60 + other.sec:
@@ -36,3 +39,13 @@ class DayTime(object):
 
     def __gt__(self,other): #x<y calls x.__lt__(y)
         return other.__lt__(self)
+
+def yesterday():
+    """return string like '20131025'
+    """
+    yesterday = datetime.now() - timedelta(days = 1)
+    return yesterday.strftime('%Y%m%d')    
+
+if __name__ == '__main__':
+    print yesterday()
+    
