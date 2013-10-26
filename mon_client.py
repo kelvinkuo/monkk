@@ -12,7 +12,7 @@
 #等待中控服务器的fetch请求
 
 
-import sys,time,threading,os,re,tarfile
+import sys,time,threading,os,re,tarfile,logging
 import BaseHTTPServer
 from SimpleHTTPServer import SimpleHTTPRequestHandler
 from datetime import date
@@ -22,14 +22,22 @@ WEB_SERVICE_PORT = 55666
 WEB_ASSETS_ROOT = '/91logs/'
 FLASHSERVER_ROOT = '/mg/'
 
+# logging.basicConfig(format='%(asctime)s %(message)s',
+#                     filename='mon_client.log',
+#                     datefmt='%Y%m%d_%H:%M:%S',
+#                     level=logging.DEBUG)
+# logging.getLogger().addHandler(logging.StreamHandler(sys.stdout))
+print 'right here'
+
 class ThreadWebService(threading.Thread):
-    """thread class,service as a web server"""
+    """thread class,service as a web server
+    """
     def __init__(self):
         threading.Thread.__init__(self)
 
     def start_webservice(self):
-        """launch a webservice for server to fectch log file """
-        
+        """launch a webservice for server to fectch log file
+        """
         os.chdir(WEB_ASSETS_ROOT) #set the logs dir
         HandlerClass = SimpleHTTPRequestHandler
         ServerClass  = BaseHTTPServer.HTTPServer
@@ -41,6 +49,7 @@ class ThreadWebService(threading.Thread):
         
         sa = httpd.socket.getsockname()
         print "Serving HTTP on", sa[0], "port", sa[1], "..."
+#        logging.info('serving http on %')
         httpd.serve_forever()
 
     def run(self):
