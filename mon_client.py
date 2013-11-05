@@ -21,9 +21,9 @@ WEB_SERVICE_PORT = 55666
 WEB_ASSETS_ROOT = './archive'
 LOG_ARCHIVE_DIR = './91logs/'
 if 'win' in sys.platform:
-    FLASHSERVER_ROOT = 'F:/91work/class/Debug'
+    FLASHSERVER_ROOT = 'D:/91flash_release_20131029'
 else:
-    FLASHSERVER_ROOT = '/mg/'
+    FLASHSERVER_ROOT = '/mg/release_20131105/server/'
 
 class ThreadWebService(threading.Thread):
     """thread class,service as a web server
