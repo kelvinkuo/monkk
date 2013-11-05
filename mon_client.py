@@ -12,22 +12,14 @@
 #等待中控服务器的fetch请求
 
 
-import sys,time,threading,os,re,tarfile,logging
+import sys,time,threading,os,re,tarfile,logging,logging.handlers
 import BaseHTTPServer
 from SimpleHTTPServer import SimpleHTTPRequestHandler
 from datetime import date
 
-
 WEB_SERVICE_PORT = 55666
 WEB_ASSETS_ROOT = '/91logs/'
 FLASHSERVER_ROOT = '/mg/'
-
-# logging.basicConfig(format='%(asctime)s %(message)s',
-#                     filename='mon_client.log',
-#                     datefmt='%Y%m%d_%H:%M:%S',
-#                     level=logging.DEBUG)
-# logging.getLogger().addHandler(logging.StreamHandler(sys.stdout))
-print 'right here'
 
 class ThreadWebService(threading.Thread):
     """thread class,service as a web server
@@ -48,12 +40,11 @@ class ThreadWebService(threading.Thread):
         httpd = ServerClass(server_address, HandlerClass)
         
         sa = httpd.socket.getsockname()
-        print "Serving HTTP on", sa[0], "port", sa[1], "..."
-#        logging.info('serving http on %')
+        logging.info("Serving HTTP on %s:%d" % (sa[0], sa[1]))
         httpd.serve_forever()
 
     def run(self):
-        print 'ThreadWebService start running ...'
+        logging.info('ThreadWebService start running ...')
         self.start_webservice()
 
 class ThreadPackage(threading.Thread):
@@ -71,8 +62,8 @@ class ThreadPackage(threading.Thread):
             return False
 
     def packagelog(self):
-        print 'packing logs of last day...'
         yesterday = self.lastdate.strftime('%Y%m%d')
+        logging.info('packing logs of the date %s' %(yesterday))
         tar = tarfile.open(os.path.join(WEB_ASSETS_ROOT,'flashserver_%s.tar.gz'%(yesterday)),'w:gz')
         for root,dirs,files in os.walk(os.path.join(FLASHSERVER_ROOT,'logs')):
             for file in files:
@@ -81,25 +72,44 @@ class ThreadPackage(threading.Thread):
         tar.close()
         
     def run(self):
-        print 'ThreadPackage start running ...'
+        logging.info('ThreadPackage start running ...')
         while True:
             if self.diffday():
                 self.packagelog()
                 self.lastdate = date.today()
             time.sleep(30)
 
+def init_log(fname):
+    """init the log module, use the root logger
+    """
+    formatter = logging.Formatter('%(asctime)s %(message)s(%(levelname)s)(%(threadName)s)','%Y%m%d_%H:%M:%S')
+
+    fh = logging.FileHandler(fname)
+    fh.setLevel(logging.DEBUG)
+    fh.setFormatter(formatter)
+    mh = logging.handlers.MemoryHandler(10,target=fh)
+
+    ch = logging.StreamHandler(sys.stdout)
+    ch.setLevel(logging.DEBUG)
+    ch.setFormatter(formatter)
+    
+    logging.getLogger().addHandler(mh)
+    logging.getLogger().addHandler(ch)
+    
+    logging.getLogger().setLevel(logging.DEBUG)
+
+    logging.info('completed: init_log logfile=%s' % (fname))
+
 def init_check():
     if not os.path.exists(WEB_ASSETS_ROOT): #check logs dir
         os.makedirs(WEB_ASSETS_ROOT)
 
 if __name__ == '__main__':
-    
+    init_log('mon_client.%d.log'%(os.getpid())) #log must be the first module to be launched
     init_check()
 
     th = ThreadPackage()
-#    th.start()
-    th.packagelog()
+    th.start()
 
-    quit()
     th = ThreadWebService()
     th.start()

@@ -12,9 +12,12 @@
 FLASHSERVER_LIST = ['192.241.207.26']
 LOCAL_LOG_DIR = '/91_flashserver_logs/bak/'
 LOG_CLASS_DIR = '/91_flashserver_logs/class/'
+THREAD_REDIS_CLIENT_NUM = 5
 
 import sys,os,time,threading,urllib,logging,logging.handlers,tarfile,re
 from datetime import datetime
+from Queue import Queue
+
 from daytime import DayTime
 from daytime import yesterday
 
@@ -49,11 +52,12 @@ class ThreadFetchLog(threading.Thread):
 class ThreadParseLog(threading.Thread):
     """
     """
-    def __init__(self):
+    def __init__(self,q):
         threading.Thread.__init__(self)
         self.lastchecktime = DayTime(datetime.now())
         self.parsetime = DayTime((3,0,0)) #03:00:00
         self.curworkdir = None
+        self.que_redis = q
 
     def parselog(self,logdate):
         # unpack tar file
@@ -92,7 +96,7 @@ class ThreadParseLog(threading.Thread):
             file = open(f,'r')
             for line in file:
                 if 'MONKK PacketLost' not in line: continue
-                
+                #self.que_redis.put({})
                 
             file.close()
 
@@ -105,14 +109,29 @@ class ThreadParseLog(threading.Thread):
             self.lastchecktime = DayTime(datetime.now())
             time.sleep(30)
 
-# def grep(pattern,word_list):
-#     expr = re.compile(pattern)
-#     return [elem for elem in word_list if expr.match(elem)]
+class ThreadRedis(threading.Thread):
+
+    def __init__(self,q):
+        threading.Thread.__init__(self)
+        self.q = q
+        #connect redis server
+    
+    def savedata(self,item):
+        
+        pass
+
+    def run(self):
+        while True:
+            item = self.q.get()
+            self.savedata(item)
+            self.q.task_done()
+
 
 def init_log(fname):
     """init the log module, use the root logger
     """
     formatter = logging.Formatter('%(asctime)s %(message)s(%(levelname)s)(%(threadName)s)','%Y%m%d_%H:%M:%S')
+
     fh = logging.FileHandler(fname)
     fh.setLevel(logging.DEBUG)
     fh.setFormatter(formatter)
@@ -130,28 +149,25 @@ def init_log(fname):
     logging.info('completed: init_log logfile=%s' % (fname))
 
 if __name__ == '__main__':
-    init_log('mon_supervisor.%d.log'%(os.getpid()))
     
-    logging.info("1")
-    logging.info("2")
-    logging.info("3")
-    logging.info("4")
-    logging.info("5")
-    time.sleep(20)
+    init_log('mon_supervisor.%d.log'%(os.getpid())) #log must be the first module to be launched
     
-#    l = ThreadParseLog().getclasslist(['flashServer.4624.20131016_154628.mg-0.log'])
-#    print l
+    que_redis_save = Queue() #saving log data to redis queue
     
-#    print re.split('[ =,\.]', '2013-10-16 16:44:22 MONKK PacketLost classid=5904,userid=0,count=0')[5]
+    for i in range(THREAD_REDIS_CLIENT_NUM):
+        ThreadRedis(que_redis_save).start()
+    
+    import random
+    for i in range(100000):
+        logging.info('for %d' % i)
+        que_redis_save.put(('V',random.randint(0,270),'192.168.11.45'))
+    
     quit()
-    # for i in range(5):
-    #     logging.info('yo yo check now')
-    #     logging.warning('warning')
-    #     logging.error('error come')
-    # quit()
-    th = ThreadParseLog()
-    th.start()
+    ThreadParseLog(que_redis_save).start()
 #    th.parselog(yesterday())
 
     th = ThreadFetchLog()
+    th.start()
+
+    th = ThreadRedis()
     th.start()
