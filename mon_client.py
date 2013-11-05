@@ -12,14 +12,18 @@
 #等待中控服务器的fetch请求
 
 
-import sys,time,threading,os,re,tarfile,logging,logging.handlers
+import sys,time,threading,os,re,tarfile,logging,logging.handlers,shutil
 import BaseHTTPServer
 from SimpleHTTPServer import SimpleHTTPRequestHandler
 from datetime import date
 
 WEB_SERVICE_PORT = 55666
-WEB_ASSETS_ROOT = '/91logs/'
-FLASHSERVER_ROOT = '/mg/'
+WEB_ASSETS_ROOT = './archive'
+LOG_ARCHIVE_DIR = './91logs/'
+if 'win' in sys.platform:
+    FLASHSERVER_ROOT = 'F:/91work/class/Debug'
+else:
+    FLASHSERVER_ROOT = '/mg/'
 
 class ThreadWebService(threading.Thread):
     """thread class,service as a web server
@@ -64,12 +68,16 @@ class ThreadPackage(threading.Thread):
     def packagelog(self):
         yesterday = self.lastdate.strftime('%Y%m%d')
         logging.info('packing logs of the date %s' %(yesterday))
-        tar = tarfile.open(os.path.join(WEB_ASSETS_ROOT,'flashserver_%s.tar.gz'%(yesterday)),'w:gz')
+        archivefile = 'flashserver_%s.tar.gz'%(yesterday)
+        tar = tarfile.open(os.path.join(LOG_ARCHIVE_DIR,archivefile),'w:gz')
         for root,dirs,files in os.walk(os.path.join(FLASHSERVER_ROOT,'logs')):
             for file in files:
                 if not re.match('^flashServer\.[0-9]+\.%s.+\.log'%(yesterday), file): continue
-                tar.add(os.path.join(root,file))
+                shutil.copyfile(os.path.join(root,file), os.path.join(LOG_ARCHIVE_DIR,file))
+                tar.add(os.path.join(LOG_ARCHIVE_DIR,file) ,recursive=False)
+                os.remove(os.path.join(LOG_ARCHIVE_DIR,file))
         tar.close()
+        shutil.move(os.path.join(LOG_ARCHIVE_DIR,archivefile), os.path.join(WEB_ASSETS_ROOT,archivefile))
         
     def run(self):
         logging.info('ThreadPackage start running ...')
@@ -98,10 +106,12 @@ def init_log(fname):
     
     logging.getLogger().setLevel(logging.DEBUG)
 
-    logging.info('completed: init_log logfile=%s' % (fname))
+    logging.info('init_log logfile=%s' % (fname))
 
 def init_check():
-    if not os.path.exists(WEB_ASSETS_ROOT): #check logs dir
+    if not os.path.exists(LOG_ARCHIVE_DIR):
+        os.makedirs(LOG_ARCHIVE_DIR)
+    if not os.path.exists(WEB_ASSETS_ROOT):
         os.makedirs(WEB_ASSETS_ROOT)
 
 if __name__ == '__main__':
