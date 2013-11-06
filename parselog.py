@@ -1,5 +1,5 @@
 #proj  :91log
-#module:parselog
+#module:parse_tarfile
 #date  :Thu Oct 17 17:49:57 2013
 #author:kk
 

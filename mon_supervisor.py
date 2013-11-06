@@ -20,20 +20,24 @@ FLASHSERVER_LIST = [
 '106.186.116.170',
 '14.18.206.3',
 '110.34.240.58',
-'70.39.189.80'
+'70.39.189.80',
+'42.121.76.137'
 ]
 
-LOCAL_LOG_DIR = '/91_flashserver_logs/bak/'
-LOG_CLASS_DIR = '/91_flashserver_logs/class/'
-THREAD_REDIS_CLIENT_NUM = 5
+ARCHIVE_DIR = './archive_logs/'
+WORKBENCH = './workbench/'
+#THREAD_REDIS_CLIENT_NUM = 5
 
-import sys,os,time,threading,urllib,logging,logging.handlers,tarfile,re
+import sys,os,time,threading,urllib,logging,logging.handlers,tarfile,re,redis
 from datetime import datetime
 from Queue import Queue
 
 from daytime import DayTime
 from daytime import yesterday
 
+###########################################
+#fectch module
+###########################################
 class ThreadFetchLog(threading.Thread):
     """Thread Class for fetching log on every client
     """
@@ -46,11 +50,12 @@ class ThreadFetchLog(threading.Thread):
         logging.info('fetch logs on all clients')
         yest = yesterday()
         for server in FLASHSERVER_LIST:
+            downloadurl = 'http://%s:55666/archive/flashserver_%s.tar.gz' % (server, yest)
             try:
-                downloadurl = 'http://%s:55666/archive/flashserver_%s.tar.gz' % (server, yest)
                 logging.info('downloading %s', downloadurl)
-                urllib.urlretrieve(downloadurl, filename = os.path.join(LOCAL_LOG_DIR, 'flashserver_%s.tar.gz' % (yest)))
-            except Exception(e):               
+                if not os.path.exists(os.path.join(ARCHIVE_DIR, server)): os.makedirs(os.path.join(ARCHIVE_DIR, server))
+                urllib.urlretrieve(downloadurl, filename=os.path.join(ARCHIVE_DIR, 'flashserver_%s.tar.gz' % (yest)))
+            except Exception(e):
                 logging.error('downloading %s: %s', downloadurl, e)
         
     def run(self):
@@ -62,35 +67,43 @@ class ThreadFetchLog(threading.Thread):
             self.lastchecktime = DayTime(datetime.now())
             time.sleep(30)
 
+###########################################
+#parse module
+###########################################
 class ThreadParseLog(threading.Thread):
     """
     """
-    def __init__(self,q):
+    def __init__(self,handlers=None):
         threading.Thread.__init__(self)
         self.lastchecktime = DayTime(datetime.now())
         self.parsetime = DayTime((3,0,0)) #03:00:00
-        self.curworkdir = None
-        self.que_redis = q
+        #self.curworkdir = None
+        #self.que_redis = q
+        self.handlers = handlers
 
-    def parselog(self,logdate):
-        # unpack tar file
-        tar = tarfile.open(os.path.join(LOCAL_LOG_DIR,'flashserver_%s.tar.gz'%(logdate)),'r:gz')
-        tar.extractall(LOG_CLASS_DIR)
+    def parse_date(self,date):
+        for root,dirs,files in os.walk(ARCHIVE_DIR):
+            for file in files:
+                if not re.match('^flashServer\.[0-9]+\.%s.+\.log'%(date), file): continue
+                self.parse_tarfile(os.path.join(root,file))
+
+    def parse_tarfile(self,file):
+        tar = tarfile.open(file,'r:gz')
+        tar.extractall(WORKBENCH)
         tar.close()
         
         l=[]
-        for root,dirs,files in os.walk(LOG_CLASS_DIR):
+        for root,dirs,files in os.walk(WORKBENCH):
             for file in files:
                 l.append(os.path.join(root,file))
 
-        # parse
-        self.parseclasspacketlost(l)
-        # clean files
-        for i in l:
-            try:
-                os.remove(i)
-            except:
-                logging.error('parselog cant remove %s', i)
+        if self.handlers is not None:
+            for h in self.handlers:
+                h.dowork(l)
+
+        for f in l:
+            try: os.remove(f)
+            except: logging.error('parse_tarfile cant remove %s', f)
     
     def getclasslist(self,flist):
         set_class = set()
@@ -118,26 +131,74 @@ class ThreadParseLog(threading.Thread):
         while True:
             nowtime = DayTime(datetime.now())
             if nowtime > self.parsetime and self.lastchecktime <= self.parsetime:
-                self.parselog()
+                self.parse_date(yesterday())
             self.lastchecktime = DayTime(datetime.now())
             time.sleep(30)
 
-class ThreadRedis(threading.Thread):
+class LogHandler(object):
+    def __init__(self,handlers=None):
+        self.handlers = handlers
 
-    def __init__(self,q):
-        threading.Thread.__init__(self)
-        self.q = q
-        #connect redis server
-    
-    def savedata(self,item):
-        
+    def dowork(self,l):
+        for f in l:
+            self.do_onefile(f)
+
+    def do_onefile(self,f):
+        raise NotImplementedError('do_onefile must be implemented')
+
+class ClassPacketLostHandler(LogHandler):
+    def __init__(self,handlers=None):
+        LogHandler.__init__(self,handlers)
+
+    def do_onefile(self,f):
+        #todo
         pass
 
-    def run(self):
-        while True:
-            item = self.q.get()
-            self.savedata(item)
-            self.q.task_done()
+class ClassDisConnHandler(LogHandler):
+    def __init__(self,handlers=None):
+        LogHandler.__init__(self,handlers)
+
+    def do_onefile(self,f):
+        #todo
+        pass
+
+class SaveHandler(object):
+    def __init__(self):
+        pass
+
+    def StrSet(self, key, value):
+        raise NotImplementedError('StrSet must be implemented')
+
+    def StrGet(self, key):
+        raise NotImplementedError('Strget must be implemented')
+
+class RedisSaveHandler(SaveHandler):
+    def __init__(self):
+        SaveHandler.__init__(self)
+
+    def StrSet(self, key, value):
+
+        pass
+
+    def StrGet(self, key):
+        #todo
+        pass
+#class ThreadRedis(threading.Thread):
+#
+#    def __init__(self,q):
+#        threading.Thread.__init__(self)
+#        self.q = q
+#        #connect redis server
+#
+#    def savedata(self,item):
+#
+#        pass
+#
+#    def run(self):
+#        while True:
+#            item = self.q.get()
+#            self.savedata(item)
+#            self.q.task_done()
 
 
 def init_log(fname):
@@ -166,7 +227,7 @@ if __name__ == '__main__':
     
     init_log('mon_supervisor.%d.log'%(os.getpid())) #log must be the first module to be launched
     
-    que_redis_save = Queue() #saving log data to redis queue
+    #que_redis_save = Queue() #saving log data to redis queue
 
     #for i in range(THREAD_REDIS_CLIENT_NUM):
     #    ThreadRedis(que_redis_save).start()
@@ -178,10 +239,12 @@ if __name__ == '__main__':
     
     #quit()
     #ThreadParseLog(que_redis_save).start()
-#    th.parselog(yesterday())
+#    th.parse_tarfile(yesterday())
 
     th = ThreadFetchLog()
     th.start()
 
-    #th = ThreadRedis()
-    #th.start()
+    redisHandler = RedisSaveHandler()
+    th = ThreadParseLog( [ClassDisConnHandler([redisHandler]),
+                          ClassPacketLostHandler([redisHandler])] )
+    th.start()

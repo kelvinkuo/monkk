@@ -44,7 +44,7 @@ def yesterday():
     """return string like '20131025'
     """
     yesterday = datetime.now() - timedelta(days = 1)
-    return yesterday.strftime('%Y%m%d')    
+    return yesterday.strftime('%Y%m%d')
 
 if __name__ == '__main__':
     print yesterday()
