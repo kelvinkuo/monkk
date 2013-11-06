@@ -34,7 +34,7 @@ class ThreadWebService(threading.Thread):
     def start_webservice(self):
         """launch a webservice for server to fectch log file
         """
-        os.chdir(WEB_ASSETS_ROOT) #set the logs dir
+        #os.chdir(WEB_ASSETS_ROOT) #set the logs dir
         HandlerClass = SimpleHTTPRequestHandler
         ServerClass  = BaseHTTPServer.HTTPServer
         Protocol     = "HTTP/1.0"    
@@ -67,7 +67,7 @@ class ThreadPackage(threading.Thread):
 
     def packagelog(self):
         yesterday = self.lastdate.strftime('%Y%m%d')
-        logging.info('packing logs of the date %s' %(yesterday))
+        logging.info('start packing logs, date:%s' %(yesterday))
         archivefile = 'flashserver_%s.tar.gz'%(yesterday)
         tar = tarfile.open(os.path.join(LOG_ARCHIVE_DIR,archivefile),'w:gz')
         for root,dirs,files in os.walk(os.path.join(FLASHSERVER_ROOT,'logs')):
@@ -75,6 +75,7 @@ class ThreadPackage(threading.Thread):
                 if not re.match('^flashServer\.[0-9]+\.%s.+\.log'%(yesterday), file): continue
                 shutil.copyfile(os.path.join(root,file), os.path.join(LOG_ARCHIVE_DIR,file))
                 tar.add(os.path.join(LOG_ARCHIVE_DIR,file) ,recursive=False)
+                logging.info()
                 os.remove(os.path.join(LOG_ARCHIVE_DIR,file))
         tar.close()
         shutil.move(os.path.join(LOG_ARCHIVE_DIR,archivefile), os.path.join(WEB_ASSETS_ROOT,archivefile))
@@ -95,18 +96,19 @@ def init_log(fname):
     fh = logging.FileHandler(fname)
     fh.setLevel(logging.DEBUG)
     fh.setFormatter(formatter)
-    mh = logging.handlers.MemoryHandler(10,target=fh)
+#    mh = logging.handlers.MemoryHandler(10,target=fh)
 
     ch = logging.StreamHandler(sys.stdout)
     ch.setLevel(logging.DEBUG)
     ch.setFormatter(formatter)
     
-    logging.getLogger().addHandler(mh)
+#    logging.getLogger().addHandler(mh)
+    logging.getLogger().addHandler(fh)
     logging.getLogger().addHandler(ch)
     
     logging.getLogger().setLevel(logging.DEBUG)
 
-    logging.info('init_log logfile=%s' % (fname))
+    logging.info('logfile:%s' % (fname))
 
 def init_check():
     if not os.path.exists(LOG_ARCHIVE_DIR):

@@ -9,7 +9,20 @@
 
 #mon_supervisor only run under linux os
 
-FLASHSERVER_LIST = ['192.241.207.26']
+FLASHSERVER_LIST = [
+#windows
+'42.121.34.105',
+'58.68.229.42',
+'98.126.132.210',
+'203.90.245.15',
+#linux
+'192.241.207.26',
+'106.186.116.170',
+'14.18.206.3',
+'110.34.240.58',
+'70.39.189.80'
+]
+
 LOCAL_LOG_DIR = '/91_flashserver_logs/bak/'
 LOG_CLASS_DIR = '/91_flashserver_logs/class/'
 THREAD_REDIS_CLIENT_NUM = 5
@@ -34,7 +47,7 @@ class ThreadFetchLog(threading.Thread):
         yest = yesterday()
         for server in FLASHSERVER_LIST:
             try:
-                downloadurl = 'http://%s:55666/flashserver_%s.tar.gz' % (server, yest)
+                downloadurl = 'http://%s:55666/archive/flashserver_%s.tar.gz' % (server, yest)
                 logging.info('downloading %s', downloadurl)
                 urllib.urlretrieve(downloadurl, filename = os.path.join(LOCAL_LOG_DIR, 'flashserver_%s.tar.gz' % (yest)))
             except Exception(e):               
@@ -135,39 +148,40 @@ def init_log(fname):
     fh = logging.FileHandler(fname)
     fh.setLevel(logging.DEBUG)
     fh.setFormatter(formatter)
-    mh = logging.handlers.MemoryHandler(10,target=fh)
+    #mh = logging.handlers.MemoryHandler(10,target=fh)
 
     ch = logging.StreamHandler(sys.stdout)
     ch.setLevel(logging.DEBUG)
     ch.setFormatter(formatter)
     
-    logging.getLogger().addHandler(mh)
+    #logging.getLogger().addHandler(mh)
+    logging.getLogger().addHandler(fh)
     logging.getLogger().addHandler(ch)
     
     logging.getLogger().setLevel(logging.DEBUG)
 
-    logging.info('completed: init_log logfile=%s' % (fname))
+    logging.info('logfile:%s' % (fname))
 
 if __name__ == '__main__':
     
     init_log('mon_supervisor.%d.log'%(os.getpid())) #log must be the first module to be launched
     
     que_redis_save = Queue() #saving log data to redis queue
+
+    #for i in range(THREAD_REDIS_CLIENT_NUM):
+    #    ThreadRedis(que_redis_save).start()
+    #
+    #import random
+    #for i in range(100000):
+    #    logging.info('for %d' % i)
+    #    que_redis_save.put(('V',random.randint(0,270),'192.168.11.45'))
     
-    for i in range(THREAD_REDIS_CLIENT_NUM):
-        ThreadRedis(que_redis_save).start()
-    
-    import random
-    for i in range(100000):
-        logging.info('for %d' % i)
-        que_redis_save.put(('V',random.randint(0,270),'192.168.11.45'))
-    
-    quit()
-    ThreadParseLog(que_redis_save).start()
+    #quit()
+    #ThreadParseLog(que_redis_save).start()
 #    th.parselog(yesterday())
 
     th = ThreadFetchLog()
     th.start()
 
-    th = ThreadRedis()
-    th.start()
+    #th = ThreadRedis()
+    #th.start()
