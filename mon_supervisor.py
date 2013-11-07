@@ -62,7 +62,7 @@ class ThreadFetchLog(threading.Thread):
         logging.info('ThreadFetchLog start running')
         while True:
             nowtime = DayTime(datetime.now())
-            if nowtime > self.fetchtime and self.lastchecktime <= self.fetchtime:
+            if nowtime > self.fetchtime >= self.lastchecktime:
                 self.fetchlog()
             self.lastchecktime = DayTime(datetime.now())
             time.sleep(30)
@@ -130,11 +130,14 @@ class ThreadParseLog(threading.Thread):
         logging.info('ThreadParseLog start running')
         while True:
             nowtime = DayTime(datetime.now())
-            if nowtime > self.parsetime and self.lastchecktime <= self.parsetime:
+            if nowtime > self.parsetime >= self.lastchecktime:
                 self.parse_date(yesterday())
             self.lastchecktime = DayTime(datetime.now())
             time.sleep(30)
-
+###########################################
+#Log Handler
+#input:file list
+###########################################
 class LogHandler(object):
     def __init__(self,handlers=None):
         self.handlers = handlers
@@ -161,7 +164,10 @@ class ClassDisConnHandler(LogHandler):
     def do_onefile(self,f):
         #todo
         pass
-
+###########################################
+#Save Handler
+#input:save request
+###########################################
 class SaveHandler(object):
     def __init__(self):
         pass

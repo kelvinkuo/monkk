@@ -12,18 +12,18 @@
 #等待中控服务器的fetch请求
 
 
-import sys,time,threading,os,re,tarfile,logging,logging.handlers,shutil
+import sys, time, threading, os, re, tarfile, logging, logging.handlers, daytime
 import BaseHTTPServer
 from SimpleHTTPServer import SimpleHTTPRequestHandler
 from datetime import date
 
 WEB_SERVICE_PORT = 55666
 WEB_ASSETS_ROOT = './archive'
-LOG_ARCHIVE_DIR = './91logs/'
 if 'win' in sys.platform:
-    FLASHSERVER_ROOT = 'D:/91flash_release_20131029'
+    FLASHSERVER_ROOT = 'D:/'
 else:
-    FLASHSERVER_ROOT = '/mg/release_20131105/server/'
+    FLASHSERVER_ROOT = '/mg/'
+
 
 class ThreadWebService(threading.Thread):
     """thread class,service as a web server
@@ -34,14 +34,13 @@ class ThreadWebService(threading.Thread):
     def start_webservice(self):
         """launch a webservice for server to fectch log file
         """
-        #os.chdir(WEB_ASSETS_ROOT) #set the logs dir
-        HandlerClass = SimpleHTTPRequestHandler
-        ServerClass  = BaseHTTPServer.HTTPServer
-        Protocol     = "HTTP/1.0"    
+        handlerclass = SimpleHTTPRequestHandler
+        serverclass = BaseHTTPServer.HTTPServer
+        protocol = "HTTP/1.0"
         server_address = ('0.0.0.0', WEB_SERVICE_PORT)
     
-        HandlerClass.protocol_version = Protocol
-        httpd = ServerClass(server_address, HandlerClass)
+        handlerclass.protocol_version = protocol
+        httpd = serverclass(server_address, handlerclass)
         
         sa = httpd.socket.getsockname()
         logging.info("Serving HTTP on %s:%d" % (sa[0], sa[1]))
@@ -51,12 +50,33 @@ class ThreadWebService(threading.Thread):
         logging.info('ThreadWebService start running ...')
         self.start_webservice()
 
+
 class ThreadPackage(threading.Thread):
     """Thread Class for packing logs to tar file
     """
     def __init__(self):
         threading.Thread.__init__(self)
         self.lastdate = date.today()
+        self.interval = 30
+        self.path_handler = []
+        self.file_handler = []
+
+    def add_pathhandler(self, h):
+        self.path_handler.append(h)
+
+    def add_filehandler(self, h):
+        self.file_handler.append(h)
+
+    def set_interval(self, secs):
+        self.interval = secs
+
+    def packagelog(self):
+        logging.info('start packing logs of yesterday')
+
+        for ph in self.path_handler:
+            l = ph.get_files()
+            for fh in self.file_handler:
+                fh.dofiles(l)
 
     def diffday(self):
         _diffdate = date.today() - self.lastdate
@@ -65,33 +85,100 @@ class ThreadPackage(threading.Thread):
         else:
             return False
 
-    def packagelog(self):
-        yesterday = self.lastdate.strftime('%Y%m%d')
-        logging.info('start packing logs, date:%s' %(yesterday))
-        archivefile = 'flashserver_%s.tar.gz'%(yesterday)
-        tar = tarfile.open(os.path.join(LOG_ARCHIVE_DIR,archivefile),'w:gz')
-        for root,dirs,files in os.walk(os.path.join(FLASHSERVER_ROOT,'logs')):
-            for file in files:
-                if not re.match('^flashServer\.[0-9]+\.%s.+\.log'%(yesterday), file): continue
-                shutil.copyfile(os.path.join(root,file), os.path.join(LOG_ARCHIVE_DIR,file))
-                tar.add(os.path.join(LOG_ARCHIVE_DIR,file) ,recursive=False)
-                logging.info()
-                os.remove(os.path.join(LOG_ARCHIVE_DIR,file))
-        tar.close()
-        shutil.move(os.path.join(LOG_ARCHIVE_DIR,archivefile), os.path.join(WEB_ASSETS_ROOT,archivefile))
-        
     def run(self):
         logging.info('ThreadPackage start running ...')
         while True:
             if self.diffday():
                 self.packagelog()
                 self.lastdate = date.today()
-            time.sleep(30)
+            time.sleep(self.interval)
+
+
+###########################################
+#PathHandler
+###########################################
+class PathHandler(object):
+    def __init__(self, root, rex_dir, rex_file):
+        self.root = root
+        self.rex_dir = rex_dir
+        self.rex_file = rex_file
+
+    def get_files(self):
+        l = []
+        for root, dirs, files in os.walk(self.root):
+            if not re.search(self.rex_dir, root):
+                continue
+            for f in files:
+                if not re.match(self.rex_file, f):
+                    continue
+                l.append(os.path.join(root, f))
+        return l
+
+
+class YesterdayPathHandler(PathHandler):
+    def __init__(self, root, rex_dir, rex_file_pattern):
+        PathHandler.__init__(self, root, rex_dir, None)
+        self.rex_file_pattern = rex_file_pattern
+
+    def get_files(self):
+        self.rex_file = self.rex_file_pattern.replace('%s', daytime.yesterday())
+        return PathHandler.get_files(self)
+
+
+###########################################
+#FilesHandler
+###########################################
+class FilesHandler(object):
+    def __init__(self):
+        pass
+
+    def dofiles(self, l):
+        raise NotImplementedError('dofiles must be implemented')
+
+
+class TarFilesHandler(FilesHandler):
+    def __init__(self, tarpath):
+        FilesHandler.__init__(self)
+        self.tarpath = tarpath
+
+    def dofiles(self, l):
+        try:
+            tar = tarfile.open(self.tarpath, 'w:gz')
+            logging.info('create tarfile %s' % self.tarpath)
+            for fpath in l:
+                tar.add(fpath)
+                logging.info('add log to tarfile : %s' % fpath)
+            tar.close()
+        except BaseException as e:
+            logging.error('TarFilesHandler dofiles msg: %s' % e.message)
+
+
+class YesterdayTarFilesHandler(TarFilesHandler):
+    def __init__(self, tarpath_pattern):
+        TarFilesHandler.__init__(self, None)
+        self.tarpath_pattern = tarpath_pattern
+
+    def dofiles(self, l):
+        self.tarpath = self.tarpath_pattern.replace('%s', daytime.yesterday())
+        TarFilesHandler.dofiles(self, l)
+
+
+class CleanFilesHandler(FilesHandler):
+    def __init__(self):
+        FilesHandler.__init__(self)
+
+    def dofiles(self, l):
+        for fpath in l:
+            try:
+                os.remove(fpath)
+            except IOError:
+                logging.error('CleanFilesHandler cant remove %s' % fpath)
+
 
 def init_log(fname):
     """init the log module, use the root logger
     """
-    formatter = logging.Formatter('%(asctime)s %(message)s(%(levelname)s)(%(threadName)s)','%Y%m%d_%H:%M:%S')
+    formatter = logging.Formatter('%(asctime)s %(message)s(%(levelname)s)(%(threadName)s)', '%Y%m%d_%H:%M:%S')
 
     fh = logging.FileHandler(fname)
     fh.setLevel(logging.DEBUG)
@@ -108,20 +195,32 @@ def init_log(fname):
     
     logging.getLogger().setLevel(logging.DEBUG)
 
-    logging.info('logfile:%s' % (fname))
+    logging.info('logfile:%s' % fname)
+
 
 def init_check():
-    if not os.path.exists(LOG_ARCHIVE_DIR):
-        os.makedirs(LOG_ARCHIVE_DIR)
     if not os.path.exists(WEB_ASSETS_ROOT):
         os.makedirs(WEB_ASSETS_ROOT)
 
 if __name__ == '__main__':
-    init_log('mon_client.%d.log'%(os.getpid())) #log must be the first module to be launched
+    init_log('mon_client.%d.log' % os.getpid())  # log must be the first module to be launched
     init_check()
 
     th = ThreadPackage()
+    ph = YesterdayPathHandler(FLASHSERVER_ROOT, '91flash_release_[0-9]+.logs', '^flashServer\.[0-9]+\.%s.+\.log')
+    th.add_pathhandler(ph)
+    fh = YesterdayTarFilesHandler(os.path.join(WEB_ASSETS_ROOT, 'flashserver_%s.tar.gz'))
+    th.add_filehandler(fh)
+    th.set_interval(10)
     th.start()
 
-    th = ThreadWebService()
-    th.start()
+    ThreadWebService().start()
+
+    #from datetime import datetime
+    #from datetime import timedelta
+    #for i in range(1,9):
+    #    day = (datetime.now() - timedelta(days = i)).strftime('%Y%m%d')
+    #    th = ThreadPackage()
+    #    th.add_pathhandler(PathHandler(FLASHSERVER_ROOT, '91flash_release_[0-9]+.logs', '^flashServer\.[0-9]+\.%s.+\.log' % day))
+    #    th.add_filehandler(TarFilesHandler(os.path.join(WEB_ASSETS_ROOT, 'flashserver_%s.tar.gz' % day)))
+    #    th.packagelog()
