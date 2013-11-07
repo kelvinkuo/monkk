@@ -188,7 +188,7 @@ def init_log(fname):
     ch = logging.StreamHandler(sys.stdout)
     ch.setLevel(logging.DEBUG)
     ch.setFormatter(formatter)
-    
+
 #    logging.getLogger().addHandler(mh)
     logging.getLogger().addHandler(fh)
     logging.getLogger().addHandler(ch)
@@ -207,7 +207,10 @@ if __name__ == '__main__':
     init_check()
 
     th = ThreadPackage()
-    ph = YesterdayPathHandler(FLASHSERVER_ROOT, '91flash_release_[0-9]+.logs', '^flashServer\.[0-9]+\.%s.+\.log')
+    if 'win' in sys.platform:
+        ph = YesterdayPathHandler(FLASHSERVER_ROOT, '91flash_release_[0-9]+.logs', '^flashServer\.[0-9]+\.%s.+\.log')
+    else:
+        ph = YesterdayPathHandler(FLASHSERVER_ROOT, 'release_[0-9]+.server.logs', '^((mg)|(flashServer))\.[0-9]+\.%s.+\.log')
     th.add_pathhandler(ph)
     fh = YesterdayTarFilesHandler(os.path.join(WEB_ASSETS_ROOT, 'flashserver_%s.tar.gz'))
     th.add_filehandler(fh)
@@ -221,6 +224,10 @@ if __name__ == '__main__':
     #for i in range(1,9):
     #    day = (datetime.now() - timedelta(days = i)).strftime('%Y%m%d')
     #    th = ThreadPackage()
+    #    if 'win' in sys.platform:
+    #        th.add_pathhandler(PathHandler(FLASHSERVER_ROOT, '91flash_release_[0-9]+.logs', '^flashServer\.[0-9]+\.%s.+\.log' % day))
+    #    else:
+    #        th.add_pathhandler(PathHandler(FLASHSERVER_ROOT, 'release_[0-9]+.server.logs', '^((mg)|(flashServer))\.[0-9]+\.%s.+\.log' % day))
     #    th.add_pathhandler(PathHandler(FLASHSERVER_ROOT, '91flash_release_[0-9]+.logs', '^flashServer\.[0-9]+\.%s.+\.log' % day))
     #    th.add_filehandler(TarFilesHandler(os.path.join(WEB_ASSETS_ROOT, 'flashserver_%s.tar.gz' % day)))
     #    th.packagelog()
