@@ -228,6 +228,5 @@ if __name__ == '__main__':
     #        th.add_pathhandler(PathHandler(FLASHSERVER_ROOT, '91flash_release_[0-9]+.logs', '^flashServer\.[0-9]+\.%s.+\.log' % day))
     #    else:
     #        th.add_pathhandler(PathHandler(FLASHSERVER_ROOT, 'release_[0-9]+.server.logs', '^((mg)|(flashServer))\.[0-9]+\.%s.+\.log' % day))
-    #    th.add_pathhandler(PathHandler(FLASHSERVER_ROOT, '91flash_release_[0-9]+.logs', '^flashServer\.[0-9]+\.%s.+\.log' % day))
     #    th.add_filehandler(TarFilesHandler(os.path.join(WEB_ASSETS_ROOT, 'flashserver_%s.tar.gz' % day)))
     #    th.packagelog()
