@@ -98,6 +98,10 @@ class ThreadPackage(threading.Thread):
 #PathHandler
 ###########################################
 class PathHandler(object):
+    """
+    os.walk the root dir, return the files whose dir matches(re.search) 'rex_dir'
+    and filename matches(re.match) 'rex_file'
+    """
     def __init__(self, root, rex_dir, rex_file):
         self.root = root
         self.rex_dir = rex_dir
@@ -208,9 +212,13 @@ if __name__ == '__main__':
 
     th = ThreadPackage()
     if 'win' in sys.platform:
-        ph = YesterdayPathHandler(FLASHSERVER_ROOT, '91flash_release_[0-9]+.logs', '^flashServer\.[0-9]+\.%s.+\.log')
+        ph = YesterdayPathHandler(FLASHSERVER_ROOT,
+                                  '91flash_release_[0-9]+.logs',
+                                  '^flashServer\.[0-9]+\.%s.+\.log')
     else:
-        ph = YesterdayPathHandler(FLASHSERVER_ROOT, 'release_[0-9]+.server.logs', '^((mg)|(flashServer))\.[0-9]+\.%s.+\.log')
+        ph = YesterdayPathHandler(FLASHSERVER_ROOT,
+                                  'release_[0-9]+.server.logs',
+                                  '^((mg)|(flashServer))\.[0-9]+\.%s.+\.log')
     th.add_pathhandler(ph)
     fh = YesterdayTarFilesHandler(os.path.join(WEB_ASSETS_ROOT, 'flashserver_%s.tar.gz'))
     th.add_filehandler(fh)
@@ -221,7 +229,7 @@ if __name__ == '__main__':
 
     #from datetime import datetime
     #from datetime import timedelta
-    #for i in range(1,9):
+    #for i in range(1,12):
     #    day = (datetime.now() - timedelta(days = i)).strftime('%Y%m%d')
     #    th = ThreadPackage()
     #    if 'win' in sys.platform:
