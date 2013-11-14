@@ -147,9 +147,10 @@ class YesterdayDownloadHostHandler(HostHandler):
 #drive loghandler to parse log file
 ###########################################
 class LogParser(object):
-    def __init__(self, workbench):
+    def __init__(self, workbench, conn):
         self.workbench = workbench
         self.loghandlers = []
+        self.dbconn = conn
 
     def addloghandler(self, h):
         self.loghandlers.append(h)
@@ -163,7 +164,7 @@ class LogParser(object):
     def do_parse(self):
         l = self.getlogfilelist()
         for h in self.loghandlers:
-            h.dowork(l)
+            h.dowork(l, self.dbconn)
 
     def work(self):
         self.prepare()
@@ -198,13 +199,18 @@ class TarLogParser(LogParser):
         LogParser.do_parse(self)
         self.cleanworkbench()
 
-class TarsLogParser(TarLogParser):
-    def __init__(self, workbench, tarlist):
+class YesterdayTarsLogParser(TarLogParser):
+    def __init__(self, workbench, tarroot):
         TarLogParser.__init__(self, workbench, None)
-        self.tarlist = tarlist
+        self.tarroot = tarroot
 
     def work(self):
-        for tar in self.tarlist:
+        tarlist = []
+        for root,dirs,files in os.walk(self.tarroot):
+            for file in files:
+                if re.search(yesterday(), file):
+                    tarlist.append(os.path.join(root,file))
+        for tar in tarlist:
             self.tarpath = tar
             TarLogParser.work(self)
 
@@ -216,144 +222,138 @@ class TarsLogParser(TarLogParser):
 ###########################################
 class LogHandler(object):
     def __init__(self):
-        self.handlers = []
+        pass
 
-    def addsavehandler(self, h):
-        self.handlers.append(h)
-
-    #def save(self, data):
-    #    for h in self.handlers:
-    #        h.save(data)
-
-    def dowork(self,l):
+    def dowork(self, l, dbconn):
         for f in l:
-            self.do_onefile(f)
+            self.do_onefile(f, dbconn)
 
-    def do_onefile(self,f):
+    def do_onefile(self, f, dbconn):
         raise NotImplementedError('do_onefile must be implemented')
+
 
 class ClassPacketLostHandler(LogHandler):
     def __init__(self):
         LogHandler.__init__(self)
 
-    def do_onefile(self,f):
+    def do_onefile(self, f, dbconn):
         if not os.path.exists(f):
             return
         file = open(f)
         for line in file:
-            if re.match('', line):
-                pass
+            if re.match('.+MONKK PacketLost.+', line):
+                #dbconn.save
+                print line
+                #print 'dbconn save %s'
         file.close()
 
 
-
-class ClassDisConnHandler(LogHandler):
-    def __init__(self):
-        LogHandler.__init__(self)
-
-    def do_onefile(self,f):
-        #todo
-        pass
-###########################################
-#Save Handler
-#input:save request
-###########################################
-class SaveHandler(object):
-    def __init__(self):
-        pass
-
-    def save(self, data):
-        oper = data[0]
-        if oper == 'strset':
-            self.strset(data[1], data[2])
-        elif oper == 'strget':
-            return self.strget(data[1])
-        else:
-            return
-
-    def strset(self, key, value):
-        raise NotImplementedError('strset must be implemented')
-
-    def strget(self, key):
-        raise NotImplementedError('strget must be implemented')
-
-
-class RedisSaveHandler(SaveHandler):
-    def __init__(self):
-        SaveHandler.__init__(self)
-
-    def strset(self, key, value):
-        pass
-
-    def strget(self, key):
-        pass
+#class ClassDisConnHandler(LogHandler):
+#    def __init__(self):
+#        LogHandler.__init__(self)
+#
+#    def do_onefile(self,f):
+#        pass
+############################################
+##Save Handler
+##input:save request
+############################################
+#class SaveHandler(object):
+#    def __init__(self):
+#        pass
+#
+#    def save(self, data):
+#        oper = data[0]
+#        if oper == 'strset':
+#            self.strset(data[1], data[2])
+#        elif oper == 'strget':
+#            return self.strget(data[1])
+#        else:
+#            return
+#
+#    def strset(self, key, value):
+#        raise NotImplementedError('strset must be implemented')
+#
+#    def strget(self, key):
+#        raise NotImplementedError('strget must be implemented')
+#
+#
+#class RedisSaveHandler(SaveHandler):
+#    def __init__(self):
+#        SaveHandler.__init__(self)
+#
+#    def strset(self, key, value):
+#        pass
+#
+#    def strget(self, key):
+#        pass
 ###########################################
 #parse module
 ###########################################
-class ThreadParseLog(threading.Thread):
-    """
-    """
-    def __init__(self,handlers=None):
-        threading.Thread.__init__(self)
-        self.lastchecktime = DayTime(datetime.now())
-        self.parsetime = DayTime((3,0,0)) #03:00:00
-        #self.curworkdir = None
-        #self.que_redis = q
-        self.handlers = handlers
-
-    def parse_date(self,date):
-        for root,dirs,files in os.walk(ARCHIVE_DIR):
-            for file in files:
-                if not re.match('^flashServer\.[0-9]+\.%s.+\.log'%(date), file): continue
-                self.parse_tarfile(os.path.join(root,file))
-
-    def parse_tarfile(self,file):
-        tar = tarfile.open(file,'r:gz')
-        tar.extractall(WORKBENCH)
-        tar.close()
-        
-        l=[]
-        for root,dirs,files in os.walk(WORKBENCH):
-            for file in files:
-                l.append(os.path.join(root,file))
-
-        if self.handlers is not None:
-            for h in self.handlers:
-                h.dowork(l)
-
-        for f in l:
-            try: os.remove(f)
-            except: logging.error('parse_tarfile cant remove %s', f)
-    
-    def getclasslist(self,flist):
-        set_class = set()
-        for f in flist:
-            file = open(f,'r')
-            for line in file:
-                if 'MONKK PacketLost' not in line: continue
-                set_class.add(re.split('[ =,\.]', line)[5])
-            file.close()
-            
-        return list(set_class)
-
-    def parseclasspacketlost(self,flist):
-        classlist = self.getclasslist(flist)
-        for f in flist:
-            file = open(f,'r')
-            for line in file:
-                if 'MONKK PacketLost' not in line: continue
-                #self.que_redis.put({})
-                
-            file.close()
-
-    def run(self):
-        logging.info('ThreadParseLog start running')
-        while True:
-            nowtime = DayTime(datetime.now())
-            if nowtime > self.parsetime >= self.lastchecktime:
-                self.parse_date(yesterday())
-            self.lastchecktime = DayTime(datetime.now())
-            time.sleep(30)
+#class ThreadParseLog(threading.Thread):
+#    """
+#    """
+#    def __init__(self,handlers=None):
+#        threading.Thread.__init__(self)
+#        self.lastchecktime = DayTime(datetime.now())
+#        self.parsetime = DayTime((3,0,0)) #03:00:00
+#        #self.curworkdir = None
+#        #self.que_redis = q
+#        self.handlers = handlers
+#
+#    def parse_date(self,date):
+#        for root,dirs,files in os.walk(ARCHIVE_DIR):
+#            for file in files:
+#                if not re.match('^flashServer\.[0-9]+\.%s.+\.log'%(date), file): continue
+#                self.parse_tarfile(os.path.join(root,file))
+#
+#    def parse_tarfile(self,file):
+#        tar = tarfile.open(file,'r:gz')
+#        tar.extractall(WORKBENCH)
+#        tar.close()
+#
+#        l=[]
+#        for root,dirs,files in os.walk(WORKBENCH):
+#            for file in files:
+#                l.append(os.path.join(root,file))
+#
+#        if self.handlers is not None:
+#            for h in self.handlers:
+#                h.dowork(l)
+#
+#        for f in l:
+#            try: os.remove(f)
+#            except: logging.error('parse_tarfile cant remove %s', f)
+#
+#    def getclasslist(self,flist):
+#        set_class = set()
+#        for f in flist:
+#            file = open(f,'r')
+#            for line in file:
+#                if 'MONKK PacketLost' not in line: continue
+#                set_class.add(re.split('[ =,\.]', line)[5])
+#            file.close()
+#
+#        return list(set_class)
+#
+#    def parseclasspacketlost(self,flist):
+#        classlist = self.getclasslist(flist)
+#        for f in flist:
+#            file = open(f,'r')
+#            for line in file:
+#                if 'MONKK PacketLost' not in line: continue
+#                #self.que_redis.put({})
+#
+#            file.close()
+#
+#    def run(self):
+#        logging.info('ThreadParseLog start running')
+#        while True:
+#            nowtime = DayTime(datetime.now())
+#            if nowtime > self.parsetime >= self.lastchecktime:
+#                self.parse_date(yesterday())
+#            self.lastchecktime = DayTime(datetime.now())
+#            time.sleep(30)
 
 #class ThreadRedis(threading.Thread):
 #
@@ -398,20 +398,6 @@ def init_log(fname):
 if __name__ == '__main__':
     
     init_log('mon_supervisor.%d.log' % os.getpid()) #log must be the first module to be launched
-    
-    #que_redis_save = Queue() #saving log data to redis queue
-
-    #for i in range(THREAD_REDIS_CLIENT_NUM):
-    #    ThreadRedis(que_redis_save).start()
-    #
-    #import random
-    #for i in range(100000):
-    #    logging.info('for %d' % i)
-    #    que_redis_save.put(('V',random.randint(0,270),'192.168.11.45'))
-    
-    #quit()
-    #ThreadParseLog(que_redis_save).start()
-#    th.parse_tarfile(yesterday())
 
     fetcher = LogFetcher()
     for ip in FLASHSERVER_LIST:
@@ -422,13 +408,7 @@ if __name__ == '__main__':
     tars = fetcher.fetchall()
 
 
-    ClassPacketLostHandler()
-    parser = TarsLogParser(WORKBENCH, tars)
-    parser.addloghandler()
-    #th = ThreadFetchLog()
-    #th.start()
-    #
-    #redisHandler = RedisSaveHandler()
-    #th = ThreadParseLog( [ClassDisConnHandler([redisHandler]),
-    #                      ClassPacketLostHandler([redisHandler])] )
-    #th.start()
+    h_lost = ClassPacketLostHandler()
+    parser = YesterdayTarsLogParser(WORKBENCH, ARCHIVE_DIR)
+    parser.addloghandler(h_lost)
+    parser.work()
