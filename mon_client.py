@@ -12,10 +12,9 @@
 #等待中控服务器的fetch请求
 
 
-import sys, time, threading, os, re, tarfile, logging, logging.handlers, daytime
+import sys, threading, os, re, tarfile, logging, logging.handlers, daytime
 import BaseHTTPServer
 from SimpleHTTPServer import SimpleHTTPRequestHandler
-from datetime import date
 
 WEB_SERVICE_PORT = 55666
 WEB_ASSETS_ROOT = './archive'
@@ -51,13 +50,9 @@ class ThreadWebService(threading.Thread):
         self.start_webservice()
 
 
-class ThreadPackage(threading.Thread):
-    """Thread Class for packing logs to tar file
-    """
+class PackageWorker(object):
+
     def __init__(self):
-        threading.Thread.__init__(self)
-        self.lastdate = date.today()
-        self.interval = 30
         self.path_handler = []
         self.file_handler = []
 
@@ -67,9 +62,6 @@ class ThreadPackage(threading.Thread):
     def add_filehandler(self, h):
         self.file_handler.append(h)
 
-    def set_interval(self, secs):
-        self.interval = secs
-
     def packagelog(self):
         logging.info('start packing logs of yesterday')
 
@@ -77,21 +69,6 @@ class ThreadPackage(threading.Thread):
             l = ph.get_files()
             for fh in self.file_handler:
                 fh.dofiles(l)
-
-    def diffday(self):
-        _diffdate = date.today() - self.lastdate
-        if _diffdate.days > 0:
-            return True
-        else:
-            return False
-
-    def run(self):
-        logging.info('ThreadPackage start running ...')
-        while True:
-            if self.diffday():
-                self.packagelog()
-                self.lastdate = date.today()
-            time.sleep(self.interval)
 
 
 ###########################################
@@ -210,7 +187,9 @@ if __name__ == '__main__':
     init_log('mon_client.%d.log' % os.getpid())  # log must be the first module to be launched
     init_check()
 
-    th = ThreadPackage()
+    ThreadWebService().start()
+
+    pa = PackageWorker()
     if 'win' in sys.platform:
         ph = YesterdayPathHandler(FLASHSERVER_ROOT,
                                   '91flash_release_[0-9]+.logs',
@@ -219,14 +198,16 @@ if __name__ == '__main__':
         ph = YesterdayPathHandler(FLASHSERVER_ROOT,
                                   'release_[0-9]+.server.logs',
                                   '^((mg)|(flashServer))\.[0-9]+\.%s.+\.log')
-    th.add_pathhandler(ph)
+    pa.add_pathhandler(ph)
     fh = YesterdayTarFilesHandler(os.path.join(WEB_ASSETS_ROOT, 'flashserver_%s.tar.gz'))
-    th.add_filehandler(fh)
-    th.set_interval(10)
-    th.start()
+    pa.add_filehandler(fh)
 
-    ThreadWebService().start()
+    import cron
+    cron_daemon = cron.Cron()
+    cron_daemon.add('0 1 * * *', pa.packagelog)
+    cron_daemon.start()
 
+    cron_daemon.thread.join()
     #from datetime import datetime
     #from datetime import timedelta
     #for i in range(1,12):
