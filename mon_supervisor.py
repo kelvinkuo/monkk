@@ -21,6 +21,7 @@ FLASHSERVER_LIST = [
 '14.18.206.3',
 '110.34.240.58',
 '70.39.189.80',
+'115.85.18.96'
 #'42.121.76.137'
 ]
 
@@ -288,10 +289,10 @@ if __name__ == '__main__':
     parser = YesterdayTarsLogParser(WORKBENCH, ARCHIVE_DIR, dbconn)
     h_lost = ClassPacketLostHandler()
     parser.addloghandler(h_lost)
-
-    import cron
-    cron_daemon = cron.Cron()
-    cron_daemon.add('0 2 * * *', fetcher.fetchall)
-    cron_daemon.add('0 3 * * *', parser.work)
-    cron_daemon.start()
-    cron_daemon.thread.join()
+    fetcher.fetchall()
+    #import cron
+    #cron_daemon = cron.Cron()
+    #cron_daemon.add('0 2 * * *', fetcher.fetchall)
+    #cron_daemon.add('0 3 * * *', parser.work)
+    #cron_daemon.start()
+    #cron_daemon.thread.join()

@@ -15,13 +15,34 @@
 import sys, threading, os, re, tarfile, logging, logging.handlers, daytime
 import BaseHTTPServer
 from SimpleHTTPServer import SimpleHTTPRequestHandler
+import posixpath
+import urllib
 
 WEB_SERVICE_PORT = 55666
-WEB_ASSETS_ROOT = './archive'
+WEB_ASSETS_ROOT = '../archive'
 if 'win' in sys.platform:
     FLASHSERVER_ROOT = 'D:/'
 else:
     FLASHSERVER_ROOT = '/mg/'
+
+###########################################
+#WebService
+###########################################
+class MonHTTPRequestHandler(SimpleHTTPRequestHandler):
+    def translate_path(self, path):
+        ''' set ".." dir as web root'''
+        path = path.split('?',1)[0]
+        path = path.split('#',1)[0]
+        path = posixpath.normpath(urllib.unquote(path))
+        words = path.split('/')
+        words = filter(None, words)
+        path = os.path.abspath(os.path.join(os.getcwd(), os.pardir))
+        for word in words:
+            drive, word = os.path.splitdrive(word)
+            head, word = os.path.split(word)
+            if word in (os.curdir, os.pardir): continue
+            path = os.path.join(path, word)
+        return path
 
 
 class ThreadWebService(threading.Thread):
@@ -33,7 +54,7 @@ class ThreadWebService(threading.Thread):
     def start_webservice(self):
         """launch a webservice for server to fectch log file
         """
-        handlerclass = SimpleHTTPRequestHandler
+        handlerclass = MonHTTPRequestHandler
         serverclass = BaseHTTPServer.HTTPServer
         protocol = "HTTP/1.0"
         server_address = ('0.0.0.0', WEB_SERVICE_PORT)
@@ -50,6 +71,9 @@ class ThreadWebService(threading.Thread):
         self.start_webservice()
 
 
+###########################################
+#Controler
+###########################################
 class PackageWorker(object):
 
     def __init__(self):
@@ -204,7 +228,7 @@ if __name__ == '__main__':
 
     import cron
     cron_daemon = cron.Cron()
-    cron_daemon.add('0 1 * * *', pa.packagelog)
+    cron_daemon.add('4 20 * * *', pa.packagelog)
     cron_daemon.start()
 
     cron_daemon.thread.join()
