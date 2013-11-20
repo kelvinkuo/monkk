@@ -228,7 +228,7 @@ if __name__ == '__main__':
 
     import cron
     cron_daemon = cron.Cron()
-    cron_daemon.add('4 20 * * *', pa.packagelog)
+    cron_daemon.add('0 1 * * *', pa.packagelog)
     cron_daemon.start()
 
     cron_daemon.thread.join()

@@ -151,9 +151,12 @@ class TarLogParser(LogParser):
         os.makedirs(self.workbench)
 
     def prepare(self):
-        tar = tarfile.open(self.tarpath, 'r:gz')
-        tar.extractall(self.workbench)
-        tar.close()
+        try:
+            tar = tarfile.open(self.tarpath, 'r:gz')
+            tar.extractall(self.workbench)
+            tar.close()
+        except tarfile.ReadError as e:
+            print self.tarpath, e
 
     def getlogfilelist(self):
         l = []
@@ -171,6 +174,12 @@ class YesterdayTarsLogParser(TarLogParser):
     def __init__(self, workbench, tarroot, dbconn):
         TarLogParser.__init__(self, workbench, None, dbconn)
         self.tarroot = tarroot
+
+    def do_parse(self):
+        l = self.getlogfilelist()
+        for h in self.loghandlers:
+            h.dowork(l, self.dbconn, self.tarpath)
+        self.cleanworkbench()
 
     def work(self):
         tarlist = []
@@ -192,11 +201,11 @@ class LogHandler(object):
     def __init__(self):
         pass
 
-    def dowork(self, l, dbconn):
+    def dowork(self, l, dbconn, tarpath):
         for f in l:
-            self.do_onefile(f, dbconn)
+            self.do_onefile(f, dbconn, tarpath)
 
-    def do_onefile(self, f, dbconn):
+    def do_onefile(self, f, dbconn, tarpath):
         raise NotImplementedError('do_onefile must be implemented')
 
 
@@ -204,42 +213,55 @@ class ClassPacketLostHandler(LogHandler):
     def __init__(self):
         LogHandler.__init__(self)
 
-    def do_onefile(self, f, dbconn):
+    def do_onefile(self, f, dbconn, tarpath):
         if not os.path.exists(f):
             return
-        file = open(f)
-        for line in file:
-            if re.match('.+MONKK PacketLost.+', line):
-                res = re.split('[ ,=]', line)
-#2013-11-14 23:32:44 MONKK PacketLost classid=7163,userid=1256,streamtype=A,count=0,toaddr=114.242.248.128:47151:3
-                if '.' in res[5]:
-                    res[5] = res[5].split('.')[0]
-                dbconn.execute(
-                    "INSERT INTO t_packetlost (classid,usrid,usrdbid,recordtime,count) VALUES (%s,%s,%s,'%s %s',%s)"
-                    % (res[5], res[7], '9527', res[0], res[1], res[11])
-                )
-        file.close()
 
+        if not re.match('.+[0-9]+\.[0-9]+\.[0-9]+\.[0-9]+.+\.tar\.gz', tarpath):
+            return
 
+        match = re.search('[0-9]+\.[0-9]+\.[0-9]+\.[0-9]+', tarpath)
+        serverip = tarpath[match.start(): match.end()]
+
+        with open(f) as file:
+            for line in file:
+                if re.match('.+MONKK GC PacketLost.+', line):
+                    res = re.split('[ ,=]', line)
+                    #2013-11-19 17:28:58 MONKK GC PacketLost classid=43,userid=5,userdbid=20,stream=liveA3,count=0,toaddr=192.168.11.45:31585:3
+                    #      0        1      2    3    4          5     6    7   8    9     10    11     12    13  14   15          16
+                    if res[14] == '0': #count=0 not save
+                        continue
+                    if '.' in res[6]:
+                        res[6] = res[6].split('.')[0]
+                    res[16] = res[16].split(':')[0]
+
+                    dbconn.execute(
+                        "INSERT INTO t_gc_packetlost (classid,usrid,usrdbid,usrip,stream,recordtime,count,server) " \
+                        "VALUES (%s,%s,%s,'%s','%s','%s %s',%s,'%s')" \
+                        % (res[6], res[8], res[10], res[16], res[12], res[0], res[1], res[14], serverip)
+                    )
+
+        with open(f) as file:
+            for line in file:
+                if re.match('.+MONKK GG PacketLost.+', line):
+                    res = re.split('[ ,=]', line)
+                    #2013-11-19 17:04:57 MONKK GG PacketLost classid=43.000,stream=liveA5,count=0,toaddr=192.168.11.45:31587:3
+                    #      0        1      2    3    4          5     6        7      8     9   10   11       12
+                    if res[10] == '0': #count=0 not save
+                        continue
+                    if '.' in res[6]:
+                        res[6] = res[6].split('.')[0]
+                    res[12] = res[12].split(':')[0]
+
+                    dbconn.execute(
+                        "INSERT INTO t_gg_packetlost (mg_sour,mg_dest,stream,recordtime,count) " \
+                        "VALUES ('%s','%s','%s','%s %s',%s)" \
+                        % (serverip, res[12], res[8], res[0], res[1], res[10])
+                    )
+
+#todo
 #class ClassDisConnHandler(LogHandler):
-#    def __init__(self):
-#        LogHandler.__init__(self)
-#
-#    def do_onefile(self, f, dbconn):
-#        if not os.path.exists(f):
-#            return
-#        file = open(f)
-#        for line in file:
-#            if re.match('.+MONKK PacketLost.+', line):
-#                res = re.split('[ ,=]', line)
-##2013-11-14 23:32:44 MONKK PacketLost classid=7163,userid=1256,streamtype=A,count=0,toaddr=114.242.248.128:47151:3
-#                if '.' in res[5]:
-#                    res[5] = res[5].split('.')[0]
-#                dbconn.execute(
-#                    "INSERT INTO t_packetlost (classid,usrid,usrdbid,recordtime,count) VALUES (%s,%s,%s,'%s %s',%s)"
-#                    % (res[5], res[7], '9527', res[0], res[1], res[11])
-#                )
-#        file.close()
+
 
 
 def init_log(fname):
@@ -289,7 +311,8 @@ if __name__ == '__main__':
     parser = YesterdayTarsLogParser(WORKBENCH, ARCHIVE_DIR, dbconn)
     h_lost = ClassPacketLostHandler()
     parser.addloghandler(h_lost)
-    fetcher.fetchall()
+    #fetcher.fetchall()
+    parser.work()
     #import cron
     #cron_daemon = cron.Cron()
     #cron_daemon.add('0 2 * * *', fetcher.fetchall)

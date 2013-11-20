@@ -8,25 +8,25 @@ from fabric.operations import put
 from fabric.context_managers import settings
 
 env.hosts = [
-    #'root@192.168.11.47:22',
+    'root@192.168.11.47:22',
     'root@192.241.207.26:22',
     'root@106.186.116.170:22',
     'root@14.18.206.3:22',
     'root@110.34.240.58:22',
     'root@70.39.189.80:22',
-    #'root@115.85.18.96:22',
+    'root@115.85.18.96:22',
 
     #42.121.76.137 liyxrl(@WAI
 ]
 
 env.passwords = {
-    #'root@192.168.11.47:22' : '96160',
-    'root@192.241.207.26:22' : 'xvovxbetkreb',
-    'root@106.186.116.170:22' : 'Elementary)(17',
-    'root@14.18.206.3:22' : 'ofidc.com1010',
-    'root@110.34.240.58:22' : 'TrevupRAW8at',
-    'root@70.39.189.80:22' : 'wangsu#80',
-    #'root@115.85.18.96:22' : 'ck0k@s4l0B#vd6No&JN(R9H',
+    'root@192.168.11.47:22': '96160',
+    'root@192.241.207.26:22': 'xvovxbetkreb',
+    'root@106.186.116.170:22': 'Elementary)(17',
+    'root@14.18.206.3:22': 'ofidc.com1010',
+    'root@110.34.240.58:22': 'TrevupRAW8at',
+    'root@70.39.189.80:22': 'wangsu#80',
+    'root@115.85.18.96:22': 'ck0k@s4l0B#vd6No&JN(R9H',
 }
 
 def pack(app):
@@ -102,7 +102,7 @@ def install_pip_package(app):
     if app == 'client':
         with settings(warn_only=True):
             #install setuptools pip
-            #run('sudo apt-get update')
+            run('sudo apt-get update')
             run('sudo apt-get install -y python-setuptools')
             run('sudo apt-get install -y python-pip')
             #install package
@@ -119,8 +119,12 @@ def removeoldclient():
         run('rm -rf archive')
 
 def test():
-    with settings(warn_only=True):
-        run('cat /etc/issue')
+    run('ls')
+    with cd('monkk'):
+        run('ls')
+    run('ls')
+    #with settings(warn_only=True):
+    #    run('cat /etc/issue')
 
 def killclient():
     with settings(warn_only=True):
