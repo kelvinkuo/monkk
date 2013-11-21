@@ -1,0 +1,38 @@
+$def with (cl)
+
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd">
+<html xmlns="http://www.w3.org/1999/xhtml">
+<head>
+    <title>monitor system</title>
+    <link rel="icon" type="image/png" href="/static/pic/favicon.ico" />
+</head>
+<body>
+
+$if cl is None:
+    please input classid
+$else:
+    <table>
+    $for usr in cl.users():
+        <tr>
+        <td>$usr.dbid()</td>
+        <td>$usr.usrid()</td>
+        <td>
+        <table>
+        $for stream in usr.streams():
+            <tr>
+            <td>$stream.name()</td>
+            <td>
+            <table>
+            $for item in stream.items():
+                <tr><td>
+                $item
+                </td></tr>
+            </table>
+            </td>
+            </tr>
+        </table>
+        </td>
+        </tr>
+    </table>
+</body>
+</html>

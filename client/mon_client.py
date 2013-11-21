@@ -12,11 +12,13 @@
 #等待中控服务器的fetch请求
 
 
-import sys, threading, os, re, tarfile, logging, logging.handlers, daytime
+import sys, threading, os, re, tarfile, logging, logging.handlers
 import BaseHTTPServer
 from SimpleHTTPServer import SimpleHTTPRequestHandler
 import posixpath
 import urllib
+sys.path.append('../')
+from util import daytime
 
 WEB_SERVICE_PORT = 55666
 WEB_ASSETS_ROOT = '../archive'
