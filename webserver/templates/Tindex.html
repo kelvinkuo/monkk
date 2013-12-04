@@ -1,0 +1,37 @@
+$def with (state = 0)
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd">
+<html xmlns="http://www.w3.org/1999/xhtml">
+<head>
+    <title>monitor system</title>
+    <link rel="icon" type="image/png" href="/static/pic/favicon.ico" />
+</head>
+<body>
+$if state == 1:
+    hi you are loginned
+$else:
+    <div class="wrapper">
+        <div class="site clearfix">
+            <div id="site-container" class="context-loader-container" data-pjax-container>
+                <form accept-charset="UTF-8" action="/login" autocomplete="off" class="form-signup-home js-form-signup-home" method="post">
+                    <dl class="form">
+                        <dd>
+                            <input type="text" name="username" class="textfield" placeholder="Your username" data-autocheck-url="/signup_check/email">
+                        </dd>
+                    </dl>
+                    <dl class="form">
+                        <dd>
+                            <input type="password" name="password" class="textfield" placeholder="Your password" data-autocheck-url="/signup_check/password">
+                        </dd>
+                    </dl>
+                    <dl>
+                        <button class="button primary button-block" type="submit">Login</button>
+                        $if state == 2:
+                            <font color="red">用户名或密码错误</font>
+                    </dl>
+                    <input type="hidden" name="source_label" value="Homepage Form" />
+                </form>
+            </div>
+        </div>
+    </div>
+</body>
+</html>

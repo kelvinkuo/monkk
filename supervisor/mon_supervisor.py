@@ -3,36 +3,19 @@
 
 #proj   :monkk
 #module :supervisor
-#summary:中控服务，每天1点向client发送fetch请求，获取日志
-#date   :Tue Oct 22 17:03:21 2013
-#author :kk
+#date   :2013-10-22
 
-#mon_supervisor only run under linux os
 
-FLASHSERVER_LIST = [
-    #windows
-    '42.121.34.105',
-    '58.68.229.42',
-    '98.126.132.210',
-    '203.90.245.15',
-    #linux
-    '192.241.207.26',
-    '106.186.116.170',
-    '14.18.206.3',
-    '110.34.240.58',
-    '70.39.189.80',
-    '115.85.18.96'
-    #'42.121.76.137'
-]
-
-ARCHIVE_DIR = './archive_logs/'
-WORKBENCH = './workbench/'
-#THREAD_REDIS_CLIENT_NUM = 5
-
-import sys, os, urllib, logging, logging.handlers, tarfile, re, shutil
-sys.path.append('../')
-from util import daytime
-
+import os
+import urllib
+import logging
+import logging.handlers
+import tarfile
+import re
+import shutil
+import util
+import config
+import time
 
 ###########################################
 #Controler
@@ -78,11 +61,11 @@ class YesterdayDownloadHostHandler(HostHandler):
 
     def handlehost(self):
         #url = self.rex_url
-        url = self.rex_url % (self.host, self.port, daytime.yesterday())
+        url = self.rex_url % (self.host, self.port, util.yesterday())
         try:
             if not os.path.exists(os.path.join(self.localdir, self.host)):
                 os.makedirs(os.path.join(self.localdir, self.host))
-            localfile = os.path.join(self.localdir, self.host, self.rex_localfile % daytime.yesterday())
+            localfile = os.path.join(self.localdir, self.host, self.rex_localfile % util.yesterday())
             urllib.urlretrieve(url, filename=localfile)
             logging.info('downloaded ok %s', url)
             return localfile
@@ -164,7 +147,7 @@ class YesterdayTarsLogParser(TarLogParser):
         tarlist = []
         for root, dirs, files in os.walk(self.tarroot):
             for f in files:
-                if re.search(daytime.yesterday(), f):
+                if re.search(util.yesterday(), f):
                     tarlist.append(os.path.join(root, f))
         for tar in tarlist:
             self.tarpath = tar
@@ -203,28 +186,39 @@ class ClassPacketLostHandler(LogHandler):
         match = re.search('[0-9]+\.[0-9]+\.[0-9]+\.[0-9]+', tarpath)
         serverip = tarpath[match.start(): match.end()]
 
+        namecache = {}
+
         with open(f) as f:
             for line in f:
                 if re.match('.+MONKK GC PacketLost.+', line):
                     res = re.split('[ ,=]', line)
-    #2013-11-19 17:28:58 MONKK GC PacketLost classid=43,userid=5,userdbid=20,stream=liveA3,count=0,toaddr=192.168.11.45:31585:3
-    #      0        1      2    3    4          5     6    7   8    9     10    11     12    13  14   15          16
+#2013-11-19 17:28:58 MONKK GC PacketLost classid=43,userid=5,userdbid=20,stream=liveA3,count=0,toaddr=192.168.11.45:31585:3
+#      0        1      2    3    4          5     6    7   8    9     10    11     12    13  14   15          16
                     if res[14] == '0':  # count=0 not save
                         continue
                     if '.' in res[6]:
                         res[6] = res[6].split('.')[0]
                     res[16] = res[16].split(':')[0]
 
+                    dbid = res[10]
+                    if dbid in namecache:
+                        usrname = namecache[dbid]
+                    else:
+                        usrname = util.get_usrname(dbid)
+                        namecache[dbid] = usrname
+                        import time
+                        time.sleep(2)
+
                     dbconn.execute(
-                        "INSERT INTO t_gc_packetlost (classid,usrid,usrdbid,usrip,stream,recordtime,count,server) "
-                        "VALUES (%s,%s,%s,'%s','%s','%s %s',%s,'%s')"
-                        % (res[6], res[8], res[10], res[16], res[12], res[0], res[1], res[14], serverip)
+                        "INSERT INTO t_gc_packetlost (classid,usrid,usrdbid,usrip,usrname,stream,recordtime,count,server) "
+                        "VALUES (%s,%s,%s,'%s','%s','%s','%s %s',%s,'%s')"
+                        % (res[6], res[8], res[10], res[16], usrname, res[12], res[0], res[1], res[14], serverip)
                     )
 
-                if re.match('.+MONKK GG PacketLost.+', line):
+                elif re.match('.+MONKK GG PacketLost.+', line):
                     res = re.split('[ ,=]', line)
-    #2013-11-19 17:04:57 MONKK GG PacketLost classid=43.000,stream=liveA5,count=0,toaddr=192.168.11.45:31587:3
-    #      0        1      2    3    4          5     6        7      8     9   10   11       12
+#2013-11-19 17:04:57 MONKK GG PacketLost classid=43.000,stream=liveA5,count=0,toaddr=192.168.11.45:31587:3
+#      0        1      2    3    4          5     6        7      8     9   10   11       12
                     if res[10] == '0':  # count=0 not save
                         continue
                     if '.' in res[6]:
@@ -232,60 +226,102 @@ class ClassPacketLostHandler(LogHandler):
                     res[12] = res[12].split(':')[0]
 
                     dbconn.execute(
-                        "INSERT INTO t_gg_packetlost (mg_sour,mg_dest,stream,recordtime,count) "
-                        "VALUES ('%s','%s','%s','%s %s',%s)"
-                        % (serverip, res[12], res[8], res[0], res[1], res[10])
+                        "INSERT INTO t_gg_packetlost (classid,mg_sour,mg_dest,stream,recordtime,count) "
+                        "VALUES (%s,'%s','%s','%s','%s %s',%s)"
+                        % (res[6], serverip, res[12], res[8], res[0], res[1], res[10])
                     )
 
-#todo
-#class ClassDisConnHandler(LogHandler):
+
+class ClassDisConnHandler(LogHandler):
+    def __init__(self):
+        LogHandler.__init__(self)
+
+    def do_onefile(self, f, dbconn, tarpath):
+        if not os.path.exists(f):
+            return
+
+        if not re.match('.+[0-9]+\.[0-9]+\.[0-9]+\.[0-9]+.+\.tar\.gz', tarpath):
+            return
+
+        match = re.search('[0-9]+\.[0-9]+\.[0-9]+\.[0-9]+', tarpath)
+        serverip = tarpath[match.start(): match.end()]
+
+        namecache = {}
+        dis_pre = []
+        with open(f) as f:
+            for line in f:
+                if re.match('.+MONKK Disconnect state.+dbid.+', line):
+                    res = re.split('[ ,=]', line)
+#2013-11-27 11:47:50 MONKK Disconnect state=PrepareLeave,classid=5903,usrdbid=0,userid=0,toaddr=192.168.11.45:14456:3
+#      0        1      2        3       4         5          6     7     8    9   10   11   12         13
+
+                    classid = res[7] if '.' not in res[7] else res[7].split('.')[0]
+                    usrip = res[13].split(':')[0]
+                    dbid = res[9]
+                    usrid = res[11]
+                    if dbid in namecache:
+                        usrname = namecache[dbid]
+                    else:
+                        usrname = util.get_usrname(dbid)
+                        namecache[dbid] = usrname
+                        time.sleep(2)
+                    recordtime = '%s %s' % (res[0], res[1])
+                    state = res[5]
+
+                    if state == 'PrepareLeave':
+                        dis_pre.append(dbid)
+                    elif state == 'CancelLeave':
+                        if dbid in dis_pre:
+                            dis_pre.remove(dbid)
+
+                elif re.match('.+MONKK RealDisconnect.+', line):
+#2013-11-27 15:35:27 MONKK RealDisconnect classid=5903,usrdbid=0,userid=0,servertype=mcu,usrip=192.168.11.45:29062:3
+#      0        1      2        3             4     5      6   7    8   9   10       11    12        13
+                    res = re.split('[ ,=]', line)
+                    classid = res[5] if '.' not in res[5] else res[5].split('.')[0]
+                    usrip = res[13].split(':')[0]
+                    dbid = res[7]
+                    usrid = res[9]
+                    if dbid in namecache:
+                        usrname = namecache[dbid]
+                    else:
+                        usrname = util.get_usrname(dbid)
+                        namecache[dbid] = usrname
+                        time.sleep(2)
+                    recordtime = '%s %s' % (res[0], res[1])
+                    servertype = res[11]
+
+                    if dbid in dis_pre:
+                        dis_pre.remove(dbid)
+                        continue
+
+                    dbconn.execute(
+                        "INSERT INTO t_disconnect (classid,usrdbid,usrid,usrip,usrname,servertype,serverip,recordtime) "
+                        "VALUES (%s,%s,%s,'%s','%s','%s','%s','%s')"
+                        % (classid, dbid, usrid, usrip, usrname, servertype, serverip, recordtime)
+                    )
 
 
-def init_log(fname):
-    """init the log module, use the root logger
-    """
-    formatter = logging.Formatter('%(asctime)s %(message)s(%(levelname)s)(%(threadName)s)', '%Y%m%d_%H:%M:%S')
-
-    fh = logging.FileHandler(fname)
-    fh.setLevel(logging.DEBUG)
-    fh.setFormatter(formatter)
-    #mh = logging.handlers.MemoryHandler(10,target=fh)
-
-    ch = logging.StreamHandler(sys.stdout)
-    ch.setLevel(logging.DEBUG)
-    ch.setFormatter(formatter)
-
-    #logging.getLogger().addHandler(mh)
-    logging.getLogger().addHandler(fh)
-    logging.getLogger().addHandler(ch)
-
-    logging.getLogger().setLevel(logging.DEBUG)
-
-    logging.info('logfile:%s' % fname)
-
-if __name__ == '__main__':
-
-    init_log('mon_supervisor.%d.log' % os.getpid())  # log must be the first module to be launched
-
+def supervisor():
     fetcher = LogFetcher()
-    for ip in FLASHSERVER_LIST:
+    for ip in config.serverlist:
         fetcher.add_hosthandler(
             YesterdayDownloadHostHandler(
-                ip, '55666',
+                ip, config.web_port,
                 'http://%s:%s/archive/flashserver_%s.tar.gz',
-                ARCHIVE_DIR,
+                config.archivedir,
                 'flashserver_%s.tar.gz'
             )
         )
 
     from lurker import connection
     conn = connection.Connection().quick_connect(
-        'root',
-        '91waijiao',
-        dbname='91waijiao_mon_db',
-        host='192.168.11.47'
+        config.dbuser,
+        config.dbpasswd,
+        dbname=config.dbname,
+        host=config.dbhost
     )
-    parser = YesterdayTarsLogParser(WORKBENCH, ARCHIVE_DIR, conn)
+    parser = YesterdayTarsLogParser(config.workbench, config.archivedir, conn)
     h_lost = ClassPacketLostHandler()
     parser.addloghandler(h_lost)
     #fetcher.fetchall()
@@ -296,3 +332,41 @@ if __name__ == '__main__':
     cron_daemon.add('0 3 * * *', parser.work)
     cron_daemon.start()
     cron_daemon.thread.join()
+
+
+def testfetch():
+    fetcher = LogFetcher()
+    for ip in config.serverlist:
+        fetcher.add_hosthandler(
+            YesterdayDownloadHostHandler(
+                ip, '55666',
+                'http://%s:%s/archive/flashserver_%s.tar.gz',
+                config.archivedir,
+                'flashserver_%s.tar.gz'
+            )
+        )
+
+    fetcher.fetchall()
+
+
+def testparse():
+    from lurker import connection
+    conn = connection.Connection().quick_connect(
+        'root',
+        '91waijiao',
+        dbname='91waijiao_mon_db',
+        host='192.168.11.47'
+    )
+    parser = YesterdayTarsLogParser(config.workbench, config.archivedir, conn)
+    h_lost = ClassPacketLostHandler()
+    h_dis = ClassDisConnHandler()
+    #parser.addloghandler(h_lost)
+    parser.addloghandler(h_dis)
+    parser.work()
+
+
+if __name__ == '__main__':
+    util.init_log('mon_supervisor.%d.log' % os.getpid())
+    supervisor()
+    #testfetch()
+    #testparse()

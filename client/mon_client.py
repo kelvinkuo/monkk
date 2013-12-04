@@ -3,22 +3,20 @@
 
 #proj   :monkk
 #module :client
-#summary:部署在被监控服务器上，负责日志打包和响应日志获取请求
-#date   :Tue Oct 22 10:49:11 2013
-#author :kk
+#date   :2013-10-22
 
-#使用root用户运行
-#每天凌晨 定时打包前一日日志
-#等待中控服务器的fetch请求
-
-
-import sys, threading, os, re, tarfile, logging, logging.handlers
+import sys
+import threading
+import os
+import re
+import tarfile
+import logging
+import logging.handlers
 import BaseHTTPServer
 from SimpleHTTPServer import SimpleHTTPRequestHandler
 import posixpath
 import urllib
-sys.path.append('../')
-from util import daytime
+import util
 
 WEB_SERVICE_PORT = 55666
 WEB_ASSETS_ROOT = '../archive'
@@ -128,7 +126,7 @@ class YesterdayPathHandler(PathHandler):
         self.rex_file_pattern = rex_file_pattern
 
     def get_files(self):
-        self.rex_file = self.rex_file_pattern.replace('%s', daytime.yesterday())
+        self.rex_file = self.rex_file_pattern.replace('%s', util.yesterday())
         return PathHandler.get_files(self)
 
 
@@ -166,7 +164,7 @@ class YesterdayTarFilesHandler(TarFilesHandler):
         self.tarpath_pattern = tarpath_pattern
 
     def dofiles(self, l):
-        self.tarpath = self.tarpath_pattern.replace('%s', daytime.yesterday())
+        self.tarpath = self.tarpath_pattern.replace('%s', util.yesterday())
         TarFilesHandler.dofiles(self, l)
 
 

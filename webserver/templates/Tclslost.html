@@ -1,0 +1,96 @@
+$def with (cl)
+
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd">
+<html xmlns="http://www.w3.org/1999/xhtml">
+<head>
+    <title>monitor system</title>
+    <link rel="icon" type="image/png" href="/static/pic/favicon.ico" />
+</head>
+<body>
+    <form action="/classlost" method="get">
+      <p>classid: <input type="text" name="classid" />
+      <input type="submit" value="search" /></p>
+    </form>
+    <p></p>
+<div>
+$if cl is None:
+    please input a classid
+$else:
+    class: $cl.classid
+    <table align="center" cellpadding="5" cellspacing="0" border="1">
+        <caption>丢包数据</caption>
+        <tr align="center">
+            <th>usrdbid</th>
+            <th>usrname</th>
+            <th>usrid</th>
+            <th>stream</th>
+            <th>lost</th>
+            <th>usrip</th>
+            <th>mg</th>
+            <th>time</th>
+        </tr>
+        $ usrdbid = None
+        $ stream = None
+        $for item in cl.gcitems():
+            <tr align="right">
+
+            $if usrdbid != item['usrdbid']:
+                <td>$item['usrdbid']</td>
+                <td>$item['usrname']</td>
+                <td>$item['usrid']</td>
+                $ usrdbid = item['usrdbid']
+            $else:
+                <td></td><td></td><td></td>
+
+            <td>
+            $if stream != item['stream']:
+                $item['stream']
+                $ stream = item['stream']
+            </td>
+            <td>$item['count']</td>
+            <td>$item['usrip']</td>
+            <td>$item['server']</td>
+            <td>$item['recordtime']</td>
+            </tr>
+    </table>
+    <p></p>
+    <table align="center" cellpadding="5" cellspacing="0" border="1">
+        <caption>MG间丢包</caption>
+        <tr align="center">
+            <th>mg_from</th>
+            <th>mg_to</th>
+            <th>stream</th>
+            <th>lost</th>
+            <th>time</th>
+        </tr>
+        $for item in cl.ggitems():
+            <tr align="right">
+            <td>$item['mg_sour']</td>
+            <td>$item['mg_dest']</td>
+            <td>$item['stream']</td>
+            <td>$item['count']</td>
+            <td>$item['recordtime']</td>
+            </tr>
+    </table>
+    <p></p>
+    <table align="center" cellpadding="5" cellspacing="0" border="1">
+        <caption>掉线数据</caption>
+        <tr align="center">
+            <th>usrdbid</th>
+            <th>usrname</th>
+            <th>usrip</th>
+            <th>server</th>
+            <th>time</th>
+        </tr>
+        $for item in cl.disitems():
+            <tr align="right">
+            <td>$item['usrdbid']</td>
+            <td>$item['usrname']</td>
+            <td>$item['usrip']</td>
+            <td>$item['servertype'] $item['serverip']</td>
+            <td>$item['recordtime']</td>
+            </tr>
+    </table>
+</div>
+</body>
+</html>
