@@ -51,7 +51,7 @@ class login(object):
             #web.setcookie('test', 'cookice_test', 60)
             session.loginned = True
             session.username = param.username
-            raise web.seeother('/')
+            raise web.seeother('/classlost')
         else:
             raise web.seeother('/?err=passerr')
 
@@ -69,6 +69,9 @@ class classlost(object):
 
         param = web.input()
         if not hasattr(param, 'classid'):
+            return render.Tclslost(None)
+
+        if not param.classid.isdigit():
             return render.Tclslost(None)
 
         db = util.connect_db()

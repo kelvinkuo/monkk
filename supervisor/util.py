@@ -43,3 +43,13 @@ def init_log(fname):
     logging.getLogger().setLevel(logging.DEBUG)
 
     logging.info('logfile:%s' % fname)
+
+def getdbconn():
+    from lurker import connection
+    conn = connection.Connection().quick_connect(
+        config.dbuser,
+        config.dbpasswd,
+        dbname=config.dbname,
+        host=config.dbhost
+    )
+    return conn

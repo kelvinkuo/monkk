@@ -78,10 +78,9 @@ class YesterdayDownloadHostHandler(HostHandler):
 #drive loghandler to parse log file
 ###########################################
 class LogParser(object):
-    def __init__(self, workbench, dbconn):
+    def __init__(self, workbench):
         self.workbench = workbench
         self.loghandlers = []
-        self.dbconn = dbconn
 
     def addloghandler(self, h):
         self.loghandlers.append(h)
@@ -95,7 +94,7 @@ class LogParser(object):
     def do_parse(self):
         l = self.getlogfilelist()
         for h in self.loghandlers:
-            h.dowork(l, self.dbconn)
+            h.dowork(l)
 
     def work(self):
         self.prepare()
@@ -103,8 +102,8 @@ class LogParser(object):
 
 
 class TarLogParser(LogParser):
-    def __init__(self, workbench, tarpath, dbconn):
-        LogParser.__init__(self, workbench, dbconn)
+    def __init__(self, workbench, tarpath):
+        LogParser.__init__(self, workbench)
         self.tarpath = tarpath
 
     def cleanworkbench(self):
@@ -133,14 +132,14 @@ class TarLogParser(LogParser):
 
 
 class YesterdayTarsLogParser(TarLogParser):
-    def __init__(self, workbench, tarroot, dbconn):
-        TarLogParser.__init__(self, workbench, None, dbconn)
+    def __init__(self, workbench, tarroot):
+        TarLogParser.__init__(self, workbench, None)
         self.tarroot = tarroot
 
     def do_parse(self):
         l = self.getlogfilelist()
         for h in self.loghandlers:
-            h.dowork(l, self.dbconn, self.tarpath)
+            h.dowork(l, self.tarpath)
         self.cleanworkbench()
 
     def work(self):
@@ -164,11 +163,11 @@ class LogHandler(object):
     def __init__(self):
         pass
 
-    def dowork(self, l, dbconn, tarpath):
+    def dowork(self, l, tarpath):
         for f in l:
-            self.do_onefile(f, dbconn, tarpath)
+            self.do_onefile(f, tarpath)
 
-    def do_onefile(self, f, dbconn, tarpath):
+    def do_onefile(self, f, tarpath):
         raise NotImplementedError('do_onefile must be implemented')
 
 
@@ -176,7 +175,7 @@ class ClassPacketLostHandler(LogHandler):
     def __init__(self):
         LogHandler.__init__(self)
 
-    def do_onefile(self, f, dbconn, tarpath):
+    def do_onefile(self, f, tarpath):
         if not os.path.exists(f):
             return
 
@@ -196,6 +195,8 @@ class ClassPacketLostHandler(LogHandler):
 #      0        1      2    3    4          5     6    7   8    9     10    11     12    13  14   15          16
                     if res[14] == '0':  # count=0 not save
                         continue
+                    if res[10] == '0':
+                        continue
                     if '.' in res[6]:
                         res[6] = res[6].split('.')[0]
                     res[16] = res[16].split(':')[0]
@@ -209,6 +210,7 @@ class ClassPacketLostHandler(LogHandler):
                         import time
                         time.sleep(2)
 
+                    dbconn = util.getdbconn()
                     dbconn.execute(
                         "INSERT INTO t_gc_packetlost (classid,usrid,usrdbid,usrip,usrname,stream,recordtime,count,server) "
                         "VALUES (%s,%s,%s,'%s','%s','%s','%s %s',%s,'%s')"
@@ -225,6 +227,7 @@ class ClassPacketLostHandler(LogHandler):
                         res[6] = res[6].split('.')[0]
                     res[12] = res[12].split(':')[0]
 
+                    dbconn = util.getdbconn()
                     dbconn.execute(
                         "INSERT INTO t_gg_packetlost (classid,mg_sour,mg_dest,stream,recordtime,count) "
                         "VALUES (%s,'%s','%s','%s','%s %s',%s)"
@@ -236,7 +239,7 @@ class ClassDisConnHandler(LogHandler):
     def __init__(self):
         LogHandler.__init__(self)
 
-    def do_onefile(self, f, dbconn, tarpath):
+    def do_onefile(self, f, tarpath):
         if not os.path.exists(f):
             return
 
@@ -259,6 +262,9 @@ class ClassDisConnHandler(LogHandler):
                     usrip = res[13].split(':')[0]
                     dbid = res[9]
                     usrid = res[11]
+                    if dbid == '0':
+                        continue
+
                     if dbid in namecache:
                         usrname = namecache[dbid]
                     else:
@@ -282,6 +288,9 @@ class ClassDisConnHandler(LogHandler):
                     usrip = res[13].split(':')[0]
                     dbid = res[7]
                     usrid = res[9]
+                    if dbid == '0':
+                        continue
+
                     if dbid in namecache:
                         usrname = namecache[dbid]
                     else:
@@ -295,6 +304,7 @@ class ClassDisConnHandler(LogHandler):
                         dis_pre.remove(dbid)
                         continue
 
+                    dbconn = util.getdbconn()
                     dbconn.execute(
                         "INSERT INTO t_disconnect (classid,usrdbid,usrid,usrip,usrname,servertype,serverip,recordtime) "
                         "VALUES (%s,%s,%s,'%s','%s','%s','%s','%s')"
@@ -314,18 +324,10 @@ def supervisor():
             )
         )
 
-    from lurker import connection
-    conn = connection.Connection().quick_connect(
-        config.dbuser,
-        config.dbpasswd,
-        dbname=config.dbname,
-        host=config.dbhost
-    )
-    parser = YesterdayTarsLogParser(config.workbench, config.archivedir, conn)
+    parser = YesterdayTarsLogParser(config.workbench, config.archivedir)
     h_lost = ClassPacketLostHandler()
     parser.addloghandler(h_lost)
-    #fetcher.fetchall()
-    #parser.work()
+
     import cron
     cron_daemon = cron.Cron()
     cron_daemon.add('0 2 * * *', fetcher.fetchall)
@@ -355,12 +357,12 @@ def testparse():
         'root',
         '91waijiao',
         dbname='91waijiao_mon_db',
-        host='192.168.11.47'
+        host='127.0.0.1'
     )
     parser = YesterdayTarsLogParser(config.workbench, config.archivedir, conn)
     h_lost = ClassPacketLostHandler()
     h_dis = ClassDisConnHandler()
-    #parser.addloghandler(h_lost)
+    parser.addloghandler(h_lost)
     parser.addloghandler(h_dis)
     parser.work()
 
