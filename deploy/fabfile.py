@@ -9,39 +9,78 @@ from fabric.context_managers import settings
 from fabric.context_managers import lcd
 
 env.hosts = [
-    #'root@192.168.11.47:22',
-    #'root@192.241.207.26:22',
-    #'root@106.186.116.170:22',
-    #'root@14.18.206.3:22',
-    #'root@110.34.240.58:22',
-    #'root@70.39.189.80:22',
-    #'root@115.85.18.96:22',
+    #'zhangnu@112.124.10.19:22',
+    #'zhangnu@42.121.114.19:22',
+    #'zhangnu@114.112.172.219:9191',
+    #'zhangnu@54.251.110.86:22',
 
-    #42.121.76.137 liyxrl(@WAI
-
-    'root@14.18.206.3',
+    'root@14.18.206.3:22',
 ]
 
 env.passwords = {
-    #'root@192.168.11.47:22': '96160',
-    #'root@192.241.207.26:22': 'xvovxbetkreb',
-    #'root@106.186.116.170:22': 'Elementary)(17',
-    #'root@14.18.206.3:22': 'ofidc.com1010',
-    #'root@110.34.240.58:22': 'TrevupRAW8at',
-    #'root@70.39.189.80:22': 'wangsu#80',
-    #'root@115.85.18.96:22': 'ck0k@s4l0B#vd6No&JN(R9H',
-
-
-    'root@14.18.206.3:22': 'ofidc.com1010',
+    #'zhangnu@112.124.10.19:22': '$eDBi43#',
+    #'zhangnu@42.121.114.19:22': '$eDBi43#',
+    #'zhangnu@114.112.172.219:9191': '$eDBi43#',
+    #'zhangnu@54.251.110.86:22': '',
+    'zhangnu@112.124.10.19:22': '$eDBi43#',
 }
 
+env.key_filename = '~/.ssh/zhangnu_id_rsa'
+def setservers(app):
+    if app == 'clientroot':
+        env.hosts = [
+        'root@192.241.207.26:22',
+        'root@106.186.116.170:22',
+        'root@14.18.206.3:22',
+        'root@110.34.240.58:22',
+        ]
+
+        env.passwords = {
+        'root@192.241.207.26:22': 'xvovxbetkreb',
+        'root@106.186.116.170:22': 'Elementary)(17',
+        'root@14.18.206.3:22': 'ofidc.com1010',
+        'root@110.34.240.58:22': 'TrevupRAW8at',
+        }
+    elif app == 'clientzhangnu':
+        env.hosts = [
+        'zhangnu@112.124.10.19:22',
+        #'zhangnu@42.121.114.19:22',
+        #'zhangnu@114.112.172.219:9191',
+        #'zhangnu@54.251.110.86:9191',
+        ]
+
+        env.passwords = {
+        'zhangnu@112.124.10.19:22': '$eDBi43#',
+        #'zhangnu@42.121.114.19:22': '$eDBi43#',
+        #'zhangnu@114.112.172.219:9191': '$eDBi43#',
+        #'zhangnu@54.251.110.86:9191': '$eDBi43#',
+        }
+    elif app == 'supervisor':
+        env.hosts = [
+        'root@14.18.206.3:22',
+        ]
+
+        env.passwords = {
+        'root@14.18.206.3:22': 'ofidc.com1010',
+        }
+    elif app == 'webserver':
+        env.hosts = [
+        'root@14.18.206.3:22',
+        ]
+
+        env.passwords = {
+        'root@14.18.206.3:22': 'ofidc.com1010',
+        }
+
 def pack(app):
-    if app == 'client':
-        local('rm -f monclient.tar.gz')
-        local('mkdir bin')
-        local('cp mon_client.py daytime.py run_monclient.sh bin')
-        local('tar -zcf monclient.tar.gz bin/')
-        local('rm -rf bin')
+    if app == 'clientroot' or app == 'clientzhangnu':
+        with lcd('../client'):
+            local('rm -f monclient.tar.gz')
+            local('mkdir bin')
+            local('cp ../deploy/run_monclient.sh bin')
+            local('cp mon_client.py util.py bin')
+            local('tar -zcf monclient.tar.gz bin/')
+            local('rm -rf bin')
     elif app == 'supervisor':
         with lcd('../supervisor'):
             local('rm -f monsupervisor.tar.gz')
@@ -74,11 +113,15 @@ def packwin(app):
 
 
 def clean(app):
-    if app == 'client':
+    if app == 'clientroot':
         #kill mon_client
         with settings(warn_only=True):
             run('ps aux | grep mon_client | grep python | awk \'{print $2}\' | xargs kill -9')
             run('rm -rf /root/monkk/bin')
+    elif app == 'clientzhangnu':
+        with settings(warn_only=True):
+            run('ps aux | grep mon_client | grep python | awk \'{print $2}\' | xargs kill -9')
+            run('rm -rf /home/zhangnu/monkk/bin')
     elif app == 'supervisor':
         with settings(warn_only=True):
             run('ps aux | grep mon_supervisor.py | grep python | awk \'{print $2}\' | xargs kill -9')
@@ -90,9 +133,14 @@ def clean(app):
 
 
 def upload(app):
-    if app == 'client':
+    if app == 'clientroot':
         put('monclient.tar.gz', '/root/monkk/monclient.tar.gz')
         with cd('monkk'):
+            run('tar zxf monclient.tar.gz')
+    elif app == 'clientzhangnu':
+        with lcd('../client'):
+            put('monclient.tar.gz', '/home/zhangnu/monkk/monclient.tar.gz')
+        with cd('/home/zhangnu/monkk'):
             run('tar zxf monclient.tar.gz')
     elif app == 'supervisor':
         with lcd('../supervisor/'):
@@ -110,10 +158,13 @@ def update_env(app):
 
 
 def launch(app):
-    if app == 'client':
+    if app == 'clientroot':
         run('ls')
         with cd('/root/monkk/bin'):
             run('ls')
+            run('./run_monclient.sh', pty=False)
+    elif app == 'clientzhangnu':
+        with cd('/home/zhangnu/monkk/bin'):
             run('./run_monclient.sh', pty=False)
     elif app == 'supervisor':
         with cd('/root/monsupervisor'):
@@ -127,6 +178,8 @@ def afterrun(app):
 
 
 def deploy(app):
+    #set servers
+    setservers(app)
     #local
     pack(app)
     #remote

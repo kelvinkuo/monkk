@@ -20,11 +20,15 @@ import util
 
 WEB_SERVICE_PORT = 55666
 WEB_ASSETS_ROOT = '../archive'
+config = {}
+config['hasrootauth'] = False
+
 if 'win' in sys.platform:
     FLASHSERVER_ROOT = 'D:/'
-else:
+elif config['hasrootauth']:
     FLASHSERVER_ROOT = '/mg/'
-
+else:
+    FLASHSERVER_ROOT = '/home/zhangnu/'
 ###########################################
 #WebService
 ###########################################
