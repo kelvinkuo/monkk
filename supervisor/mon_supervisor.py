@@ -193,6 +193,9 @@ class ClassPacketLostHandler(LogHandler):
                     res = re.split('[ ,=]', line)
 #2013-11-19 17:28:58 MONKK GC PacketLost classid=43,userid=5,userdbid=20,stream=liveA3,count=0,toaddr=192.168.11.45:31585:3
 #      0        1      2    3    4          5     6    7   8    9     10    11     12    13  14   15          16
+                    if '' in res:
+                        logging.error('none data: %s' % line)
+                        continue
                     if res[14] == '0':  # count=0 not save
                         continue
                     if res[10] == '0':
@@ -221,6 +224,9 @@ class ClassPacketLostHandler(LogHandler):
                     res = re.split('[ ,=]', line)
 #2013-11-19 17:04:57 MONKK GG PacketLost classid=43.000,stream=liveA5,count=0,toaddr=192.168.11.45:31587:3
 #      0        1      2    3    4          5     6        7      8     9   10   11       12
+                    if '' in res:
+                        logging.error('none data: %s' % line)
+                        continue
                     if res[10] == '0':  # count=0 not save
                         continue
                     if '.' in res[6]:
@@ -257,7 +263,9 @@ class ClassDisConnHandler(LogHandler):
                     res = re.split('[ ,=]', line)
 #2013-11-27 11:47:50 MONKK Disconnect state=PrepareLeave,classid=5903,usrdbid=0,userid=0,toaddr=192.168.11.45:14456:3
 #      0        1      2        3       4         5          6     7     8    9   10   11   12         13
-
+                    if '' in res:
+                        logging.error('none data: %s' % line)
+                        continue
                     classid = res[7] if '.' not in res[7] else res[7].split('.')[0]
                     usrip = res[13].split(':')[0]
                     dbid = res[9]
@@ -278,12 +286,15 @@ class ClassDisConnHandler(LogHandler):
                         dis_pre.append(dbid)
                     elif state == 'CancelLeave':
                         if dbid in dis_pre:
-                            dis_pre.remove(dbid)
+                            dis_pre = filter(lambda a: a != dbid, dis_pre)
 
                 elif re.match('.+MONKK RealDisconnect.+', line):
+                    res = re.split('[ ,=]', line)
 #2013-11-27 15:35:27 MONKK RealDisconnect classid=5903,usrdbid=0,userid=0,servertype=mcu,usrip=192.168.11.45:29062:3
 #      0        1      2        3             4     5      6   7    8   9   10       11    12        13
-                    res = re.split('[ ,=]', line)
+                    if '' in res:
+                        logging.error('none data: %s' % line)
+                        continue
                     classid = res[5] if '.' not in res[5] else res[5].split('.')[0]
                     usrip = res[13].split(':')[0]
                     dbid = res[7]
@@ -301,7 +312,7 @@ class ClassDisConnHandler(LogHandler):
                     servertype = res[11]
 
                     if dbid in dis_pre:
-                        dis_pre.remove(dbid)
+                        dis_pre = filter(lambda a: a != dbid, dis_pre)
                         continue
 
                     dbconn = util.getdbconn()
