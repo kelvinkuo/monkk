@@ -116,7 +116,7 @@ class TarLogParser(LogParser):
             tar.extractall(self.workbench)
             tar.close()
         except tarfile.ReadError as e:
-            print self.tarpath, e
+            logging.error('%s %s' % (self.tarpath, e))
 
     def getlogfilelist(self):
         l = []
@@ -338,6 +338,8 @@ def supervisor():
     parser = YesterdayTarsLogParser(config.workbench, config.archivedir)
     h_lost = ClassPacketLostHandler()
     parser.addloghandler(h_lost)
+    h_disc = ClassDisConnHandler()
+    parser.addloghandler(h_disc)
 
     import cron
     cron_daemon = cron.Cron()
@@ -363,14 +365,7 @@ def testfetch():
 
 
 def testparse():
-    from lurker import connection
-    conn = connection.Connection().quick_connect(
-        'root',
-        '91waijiao',
-        dbname='91waijiao_mon_db',
-        host='127.0.0.1'
-    )
-    parser = YesterdayTarsLogParser(config.workbench, config.archivedir, conn)
+    parser = YesterdayTarsLogParser(config.workbench, config.archivedir)
     h_lost = ClassPacketLostHandler()
     h_dis = ClassDisConnHandler()
     parser.addloghandler(h_lost)
